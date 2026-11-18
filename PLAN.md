@@ -45,9 +45,11 @@ descriptions. This is set in `~/.claude/settings.json` (`"attribution": {"commit
 
 ```
 google-takeout-photo-sift/
-├─ GoogleTakeoutPhotoSift.sln
-├─ global.json                    SDK 11.0.100, rollForward: latestFeature
-├─ Directory.Build.props          net11.0, RootNamespace Tiesmaster.$(MSBuildProjectName), Nullable, ImplicitUsings, TreatWarningsAsErrors
+├─ GoogleTakeoutPhotoSift.slnx     the XML solution format, the default since the .NET 10 SDK
+├─ global.json                    SDK 11.0.100, rollForward: latestFeature; test runner: Microsoft.Testing.Platform
+├─ Directory.Build.props          net11.0, RootNamespace Tiesmaster.$(MSBuildProjectName), Nullable, ImplicitUsings,
+│                                 TreatWarningsAsErrors in Release only (so dotnet watch keeps going)
+├─ Directory.Packages.props       central NuGet package versions
 ├─ .editorconfig
 ├─ .gitattributes                 * text=auto eol=lf, *.sln/*.cmd/*.ps1 eol=crlf, binary fixtures
 ├─ CLAUDE.md                      conventions for Claude Code sessions (naming, commits, build/test)
@@ -82,7 +84,9 @@ stack switch keeps them. The App only translates WPF key events into chords.
 **Dependencies** (few on purpose):
 - Core: `MetadataExtractor` (Apache-2.0) to read EXIF Orientation, DateTimeOriginal, camera, the embedded
   thumbnail offsets, also from HEIC. JSON with `System.Text.Json`.
-- Tests: `xunit`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`. Plain `Assert` (I'm skipping
+- Tests: `xunit.v3` only, running on Microsoft.Testing.Platform (opted in through `global.json`; the
+  .NET 10+ SDK no longer runs xUnit v3 through VSTest, so `Microsoft.NET.Test.Sdk` and
+  `xunit.runner.visualstudio` aren't needed). Plain `Assert` (I'm skipping
   FluentAssertions because v8 changed to a commercial licence).
 - App: `Magick.NET-Q8-x64` (Apache-2.0; bundles ImageMagick with libheif and libde265, LGPL) for HEIC
   decoding (§2.2). It adds about 30 MB of native DLLs to the output. If WPF's `BitmapImage` scaling turns
@@ -622,8 +626,8 @@ until the sequence completes, is cancelled, or times out after 1.5 s.
 Each milestone ends with something to try on a real batch.
 
 **M0 — Skeleton (½ day)**
-Solution, projects, `global.json`, `Directory.Build.props`, README stub, `.gitignore`, MIT licence, CI
-workflow, one passing test.
+Solution, projects, `global.json`, `Directory.Build.props`, `Directory.Packages.props`, README stub,
+`.gitignore`, `.gitattributes`, MIT licence, CI workflow, and the first real tests (`Orientation.Rotate`).
 *Try:* `dotnet build`, `dotnet test`, and CI green on GitHub.
 
 **M1 — Index plus fast navigation of one batch**

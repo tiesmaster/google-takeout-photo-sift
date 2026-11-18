@@ -1,0 +1,13 @@
+<Window x:Class="Tiesmaster.GoogleTakeoutPhotoSift.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Google Takeout Photo Sift"
+        Width="1280" Height="800"
+        WindowState="Maximized"
+        Background="Black">
+    <Grid>
+        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                   Foreground="#DDDDDD" FontFamily="Segoe UI" FontSize="20"
+                   Text="Google Takeout Photo Sift — Esc to quit" />
+    </Grid>
+</Window>

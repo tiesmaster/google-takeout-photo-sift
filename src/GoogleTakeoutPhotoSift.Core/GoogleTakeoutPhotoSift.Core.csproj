@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- No WPF here: the index, sidecar rules, file operations, ExifTool and key bindings live in this
+       library so they stay testable and survive a UI stack switch. -->
+
+</Project>

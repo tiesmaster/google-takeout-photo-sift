@@ -1,0 +1,19 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Tiesmaster.$(MSBuildProjectName)</RootNamespace>
+    <Authors>Thijs Brobbel</Authors>
+    <Product>Google Takeout Photo Sift</Product>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Warnings fail Release builds (CI) but not Debug, so dotnet watch keeps running while editing. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

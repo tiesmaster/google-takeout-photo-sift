@@ -1,0 +1,18 @@
+# Normalise text files to LF in the repository and the working copy.
+* text=auto eol=lf
+
+# Windows-only formats keep CRLF.
+*.sln   text eol=crlf
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+*.ps1   text eol=crlf
+
+# Test fixtures are exact bytes.
+*.jpg   binary
+*.jpeg  binary
+*.png   binary
+*.heic  binary
+*.heif  binary
+*.tif   binary
+*.tiff  binary
+*.webp  binary
