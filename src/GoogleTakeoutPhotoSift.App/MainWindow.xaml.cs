@@ -136,7 +136,21 @@ public partial class MainWindow : Window
                 await Task.Delay(1000);
                 continue;
             }
-            Dispatch(KeyChord.Parse(keys[i]), isRepeat: false);
+            if (keys[i].StartsWith("type:", StringComparison.Ordinal))
+            {
+                // Typing into the open overlay's text box.
+                var box = _overlay == Overlay.Picker ? PickerFilter : GoToBox;
+                box.Text += keys[i]["type:".Length..];
+            }
+            else if (OverlayOpen && Enum.TryParse<Key>(keys[i], out var key))
+            {
+                var source = PresentationSource.FromVisual(this)!;
+                OverlayKeyDown(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, key) { RoutedEvent = Keyboard.KeyDownEvent });
+            }
+            else
+            {
+                Dispatch(KeyChord.Parse(keys[i]), isRepeat: false);
+            }
             await Task.Delay(400);
             Snapshot($"keys-{i + 1:00}");
             log.Add($"{i + 1:00} {keys[i],-6} | {Counter.Text} | {AlbumLine.Text} | {Caption.Text} | {SubCaption.Text} | {Status.Text} | {KeyHint.Text}");
@@ -249,6 +263,12 @@ public partial class MainWindow : Window
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
+        if (OverlayOpen)
+        {
+            e.Handled = OverlayKeyDown(e);
+            base.OnPreviewKeyDown(e);
+            return;
+        }
         if (_keys.FromKeyDown(e) is { } chord)
             e.Handled = Dispatch(chord, e.IsRepeat);
         base.OnPreviewKeyDown(e);
@@ -256,6 +276,12 @@ public partial class MainWindow : Window
 
     protected override void OnPreviewTextInput(TextCompositionEventArgs e)
     {
+        // While an overlay is open, typing goes to its text box.
+        if (OverlayOpen)
+        {
+            base.OnPreviewTextInput(e);
+            return;
+        }
         if (_keys.FromTextInput(e) is var (chord, isRepeat))
             e.Handled = Dispatch(chord, isRepeat);
         base.OnPreviewTextInput(e);
@@ -353,6 +379,24 @@ public partial class MainWindow : Window
             case Command.Undo:
                 Undo();
                 break;
+            case Command.AlbumPicker:
+                OpenOverlay(Overlay.Picker);
+                break;
+            case Command.GoToNumber:
+                OpenOverlay(Overlay.GoTo);
+                break;
+            case Command.Help:
+                OpenOverlay(Overlay.Help);
+                break;
+            case Command.Info:
+                ToggleInfo();
+                break;
+            case Command.Reveal:
+                Reveal();
+                break;
+            case Command.CopyPath:
+                CopyPath();
+                break;
             case Command.ToggleStrip:
                 ToggleStrip();
                 break;
@@ -367,7 +411,10 @@ public partial class MainWindow : Window
                 UpdateTimingText();
                 break;
             case Command.Escape:
-                if (_fullScreen)
+                // Esc undoes one layer at a time: the info panel, full screen, then the app.
+                if (InfoPanel.Visibility == Visibility.Visible)
+                    InfoPanel.Visibility = Visibility.Collapsed;
+                else if (_fullScreen)
                     ToggleFullScreen();
                 else
                     Close();
@@ -454,6 +501,7 @@ public partial class MainWindow : Window
         ShowBest();
         ScheduleAround();
         UpdateStrip();
+        UpdateInfo();
         _saveTimer.Stop();
         _saveTimer.Start();
     }

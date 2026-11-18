@@ -54,6 +54,47 @@
             <TextBlock x:Name="AlbumBannerText" Foreground="White" FontFamily="Segoe UI" FontWeight="SemiBold" FontSize="34" />
         </Border>
 
+        <!-- i: details of the current photo, on the right; follows the photo while open. -->
+        <Border x:Name="InfoPanel" HorizontalAlignment="Right" VerticalAlignment="Center" Width="430" Margin="0,0,14,0"
+                Background="#D0101010" CornerRadius="6" Padding="16,12" Visibility="Collapsed">
+            <TextBlock x:Name="InfoText" Foreground="#DDDDDD" FontFamily="Consolas" FontSize="13" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- ?: every shortcut, generated from the binding table. -->
+        <Border x:Name="HelpOverlay" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="#E8101010" CornerRadius="8" Padding="24,18" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Text="Keyboard shortcuts" Foreground="White" FontFamily="Segoe UI" FontSize="22" FontWeight="SemiBold"
+                           Margin="0,0,0,12" />
+                <StackPanel x:Name="HelpColumns" Orientation="Horizontal" />
+                <TextBlock x:Name="HelpFooter" Foreground="#AAAAAA" FontFamily="Segoe UI" FontSize="13" Margin="0,14,0,0"
+                           TextWrapping="Wrap" MaxWidth="1100" />
+            </StackPanel>
+        </Border>
+
+        <!-- g a: the album picker. Type to filter, Up/Down, Enter to jump, Esc to close. -->
+        <Border x:Name="PickerOverlay" HorizontalAlignment="Center" VerticalAlignment="Center" Width="640"
+                Background="#F0101010" CornerRadius="8" Padding="16" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Text="Go to album" Foreground="White" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <TextBox x:Name="PickerFilter" FontSize="16" Padding="6,4" Background="#FF202020" Foreground="White"
+                         BorderBrush="#FF555555" CaretBrush="White" TextChanged="OnPickerFilterChanged" />
+                <ListBox x:Name="PickerList" MaxHeight="520" Margin="0,8,0,0" Background="Transparent" BorderThickness="0"
+                         Foreground="#DDDDDD" FontFamily="Segoe UI" FontSize="15"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="OnPickerDoubleClick" />
+            </StackPanel>
+        </Border>
+
+        <!-- : or Ctrl+G: go to a photo number. -->
+        <Border x:Name="GoToOverlay" HorizontalAlignment="Center" VerticalAlignment="Center" Width="360"
+                Background="#F0101010" CornerRadius="8" Padding="16" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock x:Name="GoToTitle" Foreground="White" FontFamily="Segoe UI" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <TextBox x:Name="GoToBox" FontSize="18" Padding="6,4" Background="#FF202020" Foreground="White"
+                         BorderBrush="#FF555555" CaretBrush="White" />
+            </StackPanel>
+        </Border>
+
         <TextBlock x:Name="Timing" Style="{StaticResource Overlay}"
                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,10"
                    FontFamily="Consolas" FontWeight="Normal" FontSize="13" Visibility="Collapsed" />

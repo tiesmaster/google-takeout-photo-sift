@@ -27,6 +27,26 @@ public class OrientationReaderTests
     }
 
     [Fact]
+    public void PhotoInfo_reads_camera_and_size()
+    {
+        var info = PhotoInfo.Read(Fixture("orientation-6.jpg"));
+        Assert.Equal("Fixture Synthetic", info.Camera);
+        Assert.Equal((32, 16), (info.Width, info.Height));
+        Assert.Equal(PhotoInfo.Empty, PhotoInfo.Read(Fixture("missing.jpg")));
+    }
+
+    [Theory]
+    [InlineData("HTC", "HTC Desire S", "HTC Desire S")]
+    [InlineData("Canon", "EOS 600D", "Canon EOS 600D")]
+    [InlineData(null, "iPhone 15", "iPhone 15")]
+    [InlineData("Apple", null, "Apple")]
+    [InlineData(null, null, null)]
+    public void Camera_name(string? make, string? model, string? expected)
+    {
+        Assert.Equal(expected, new PhotoInfo(make, model, null, null, null).Camera);
+    }
+
+    [Fact]
     public void Garbage_counts_as_upright()
     {
         Assert.Equal(1, OrientationReader.Read("not an image"u8.ToArray()));

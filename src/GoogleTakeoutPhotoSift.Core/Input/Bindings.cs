@@ -10,6 +10,8 @@ public enum Command
     PreviousAlbum,
     AlbumEnd,
     LoosePhotos,
+    AlbumPicker,
+    GoToNumber,
     RotateRight,
     RotateLeft,
     Rotate180,
@@ -20,6 +22,10 @@ public enum Command
     StripSize,
     ToggleFullScreen,
     ToggleTiming,
+    Info,
+    Reveal,
+    CopyPath,
+    Help,
     Escape,
 }
 
@@ -61,6 +67,8 @@ public static class Bindings
             "Start of this album; at its start, the previous album", Repeat.Allow),
         new(Command.AlbumEnd, ["g e"], Group.Albums, "Last photo of this album", Repeat.Ignore, "album end"),
         new(Command.LoosePhotos, ["g l"], Group.Albums, "First loose photo (in no album)", Repeat.Ignore, "loose"),
+        new(Command.AlbumPicker, ["g a"], Group.Albums, "Album picker: type to filter, Up/Down, Enter to jump", Repeat.Ignore, "albums"),
+        new(Command.GoToNumber, [":", "Ctrl+G"], Group.Navigate, "Go to photo number", Repeat.Ignore),
         new(Command.RotateRight, ["r"], Group.Edit, "Rotate right 90°", Repeat.Ignore),
         new(Command.RotateLeft, ["l"], Group.Edit, "Rotate left 90°", Repeat.Ignore),
         new(Command.Rotate180, ["R"], Group.Edit, "Rotate 180°", Repeat.Ignore),
@@ -72,6 +80,24 @@ public static class Bindings
         new(Command.StripSize, ["T"], Group.View, "More or fewer thumbnails: 5, 8 or 3 each side", Repeat.Ignore),
         new(Command.ToggleFullScreen, ["f", "F11", "Enter"], Group.View, "Full screen", Repeat.Ignore),
         new(Command.ToggleTiming, ["F12"], Group.View, "Timing overlay", Repeat.Ignore),
+        new(Command.Info, ["i"], Group.View, "Info panel: dates, camera, copies, albums, sidecar", Repeat.Ignore),
+        new(Command.Reveal, ["o"], Group.Other, "Show the file in Explorer", Repeat.Ignore),
+        new(Command.CopyPath, ["y"], Group.Other, "Copy the file path", Repeat.Ignore),
+        new(Command.Help, ["?"], Group.Other, "This help", Repeat.Ignore),
         new(Command.Escape, ["Escape"], Group.Other, "Close overlay, leave full screen, else quit (after pending writes)", Repeat.Ignore),
     ];
+
+    /// <summary>How a key looks in the help and the README: <c>Shift+→</c>, <c>PgDn</c>, <c>g a</c>.</summary>
+    public static string Display(string key) =>
+        string.Join(" ", key.Split(' ').Select(chord => string.Join("+", chord.Split('+').Select(part => part switch
+        {
+            "Right" => "→",
+            "Left" => "←",
+            "Up" => "↑",
+            "Down" => "↓",
+            "PageDown" => "PgDn",
+            "PageUp" => "PgUp",
+            "Escape" => "Esc",
+            _ => part,
+        }))));
 }
