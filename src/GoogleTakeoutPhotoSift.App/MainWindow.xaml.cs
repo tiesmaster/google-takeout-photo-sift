@@ -62,7 +62,12 @@ public partial class MainWindow : Window
         _commandLine = commandLine;
         _settings = settings;
         _batchPath = batchPath;
-        _pipeline = new FramePipeline(settings, frame => Dispatcher.BeginInvoke(() => OnFrame(frame)));
+        _pipeline = new FramePipeline(settings, frame =>
+        {
+            // On the decode thread: the strip's thumbnail (needed for HEIC) comes from the decoded frame.
+            _thumbnails?.FromFrame(frame);
+            Dispatcher.BeginInvoke(() => OnFrame(frame));
+        });
         _fileOps = new FileOpQueue(() => new ExifToolProcess(settings.ExifToolPath),
             (op, error) => Dispatcher.BeginInvoke(() => OnFileOpCompleted(op, error)));
         _saveTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => SaveResume(), Dispatcher)
@@ -76,6 +81,7 @@ public partial class MainWindow : Window
             _dispatcher.CancelPending();
             ShowKeyHint(null);
         }, Dispatcher) { IsEnabled = false };
+        InitStrip();
         Timing.Visibility = settings.ShowTiming || commandLine.Timing ? Visibility.Visible : Visibility.Collapsed;
         Title = $"Google Takeout Photo Sift — {batchPath}";
         Counter.Text = "indexing…";
@@ -184,9 +190,10 @@ public partial class MainWindow : Window
     private void Snapshot(string name)
     {
         var (dpiX, dpiY) = DeviceScale();
-        var bitmap = new RenderTargetBitmap((int)(PhotoArea.ActualWidth * dpiX / 2), (int)(PhotoArea.ActualHeight * dpiY / 2),
+        var root = (FrameworkElement)Content;
+        var bitmap = new RenderTargetBitmap((int)(root.ActualWidth * dpiX / 2), (int)(root.ActualHeight * dpiY / 2),
             96 * dpiX / 2, 96 * dpiY / 2, PixelFormats.Pbgra32);
-        bitmap.Render(PhotoArea);
+        bitmap.Render(root);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var file = File.Create(Path.Combine(SiftSettings.AppDataFolder, $"{name}.png"));
@@ -346,6 +353,12 @@ public partial class MainWindow : Window
             case Command.Undo:
                 Undo();
                 break;
+            case Command.ToggleStrip:
+                ToggleStrip();
+                break;
+            case Command.StripSize:
+                CycleStripSize();
+                break;
             case Command.ToggleFullScreen:
                 ToggleFullScreen();
                 break;
@@ -440,6 +453,7 @@ public partial class MainWindow : Window
         UpdateHeader();
         ShowBest();
         ScheduleAround();
+        UpdateStrip();
         _saveTimer.Stop();
         _saveTimer.Start();
     }
@@ -789,6 +803,7 @@ public partial class MainWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _fileOps.Dispose();
+        _thumbnails?.Dispose();
         _pipeline.Dispose();
         _timingLog.Dispose();
         base.OnClosed(e);

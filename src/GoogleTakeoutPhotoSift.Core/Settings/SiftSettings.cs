@@ -28,6 +28,11 @@ public sealed record SiftSettings
 
     public bool ShowTiming { get; init; }
 
+    public bool ShowStrip { get; init; } = true;
+
+    /// <summary>Thumbnails on each side of the current photo in the strip.</summary>
+    public int StripPerSide { get; init; } = 5;
+
     public static string AppDataFolder { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GoogleTakeoutPhotoSift");
 

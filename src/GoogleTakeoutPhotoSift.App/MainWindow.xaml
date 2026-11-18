@@ -20,7 +20,13 @@
         </Style>
     </Window.Resources>
 
-    <Grid x:Name="PhotoArea" Background="Black" ClipToBounds="True">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+    <Grid x:Name="PhotoArea" Grid.Row="0" Background="Black" ClipToBounds="True">
         <Image x:Name="Photo"
                HorizontalAlignment="Center" VerticalAlignment="Center"
                Stretch="Fill"
@@ -51,5 +57,11 @@
         <TextBlock x:Name="Timing" Style="{StaticResource Overlay}"
                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,10"
                    FontFamily="Consolas" FontWeight="Normal" FontSize="13" Visibility="Collapsed" />
+    </Grid>
+
+        <!-- Thumbnail strip: N photos before and after the current one (t to hide, T for more or fewer). -->
+        <Border x:Name="Strip" Grid.Row="1" Background="#FF101010" Padding="0,4,0,6">
+            <StackPanel x:Name="StripCells" Orientation="Horizontal" HorizontalAlignment="Center" />
+        </Border>
     </Grid>
 </Window>

@@ -46,6 +46,7 @@ public partial class MainWindow
         _pipeline.SetOrientation(path, rotated);
         if (_shownFrame?.Path == path)
             Fit();
+        UpdateStrip();
         // After a quarter turn the sharp frame is decoded again at the new size.
         ScheduleAround();
         SetStatus(IsHeic(path)
