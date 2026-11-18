@@ -122,7 +122,7 @@ album order, timing overlay on/off.
 from the binding table by a small test, so it can't go stale; see §3.4), safety promises ("never deletes,
 never re-encodes"), and the batch layout.
 
-**CI** (`.github/workflows/build.yml`): `windows-latest`, `actions/setup-dotnet@v4` with `global-json-file: global.json`,
+**CI** (`.github/workflows/build.yml`): `windows-latest`, `actions/setup-dotnet@v5` with `global-json-file: global.json`,
 `dotnet build -c Release`, `dotnet test`. ExifTool can be added with `choco install exiftool -y` so the
 rotation tests also run in CI. Optionally a second job on a `v*` tag runs `dotnet publish` and attaches
 the single-file exe to a GitHub Release.
