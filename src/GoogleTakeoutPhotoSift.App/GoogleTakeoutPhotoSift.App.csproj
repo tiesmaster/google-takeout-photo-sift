@@ -5,6 +5,7 @@
     <TargetFramework>net11.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <AssemblyName>GoogleTakeoutPhotoSift</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

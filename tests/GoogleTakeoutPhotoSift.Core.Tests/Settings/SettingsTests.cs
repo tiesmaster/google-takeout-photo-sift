@@ -15,8 +15,8 @@ public sealed class SettingsTests : IDisposable
     [Fact]
     public void CommandLine_with_all_options()
     {
-        var parsed = CommandLine.Parse([@"C:\b\2012", "--start", "120", "--order", "python", "--timing", "--batches-root", @"D:\x"]);
-        Assert.Equal(new CommandLine(@"C:\b\2012", 120, ReviewOrderMode.Python, true, @"D:\x"), parsed);
+        var parsed = CommandLine.Parse([@"C:\b\2012", "--start", "120", "--order", "python", "--timing", "--batches-root", @"D:\x", "--bench"]);
+        Assert.Equal(new CommandLine(@"C:\b\2012", 120, ReviewOrderMode.Python, true, @"D:\x", Bench: true), parsed);
     }
 
     [Theory]

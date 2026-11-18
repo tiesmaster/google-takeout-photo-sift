@@ -31,6 +31,50 @@ dotnet run   --project src/GoogleTakeoutPhotoSift.App -- 2016
 dotnet watch --project src/GoogleTakeoutPhotoSift.App -- 2016
 ```
 
+A year is looked up in `C:\ties\takeout\batches\<year>`, then `batches\done\<year>`; a folder path
+works too. Options: `--start N` (photo number), `--timing` (show the timing overlay),
+`--batches-root PATH`, `--bench` (see below). The app reopens a batch where you left it.
+
+## Keys (so far)
+
+| Keys | Action |
+| --- | --- |
+| `→` `j` `Space` `PageDown` | next photo |
+| `←` `k` `Backspace` `PageUp` | previous photo |
+| `Home` / `End` `G` | first / last photo |
+| `f` `F11` `Enter` | full screen |
+| `F12` | timing overlay |
+| `Esc` | leave full screen, else quit |
+
+Rotate, delete, albums and the rest follow in the next milestones (see [PLAN.md](PLAN.md) §4).
+
+## Measuring speed
+
+`F12` shows the time from key press to photo on screen, with p50/p95 for cached and uncached photos.
+Every navigation is also logged to `%LOCALAPPDATA%\GoogleTakeoutPhotoSift\timing.csv`.
+
+`--bench` runs a fixed script (single steps, a held key, release, steps back, far jumps) through the
+normal navigation code, saves snapshots next to `timing.csv`, and quits:
+
+```powershell
+dotnet run --project src/GoogleTakeoutPhotoSift.App -c Release -- 2013 --start 1 --bench
+```
+
+## Settings
+
+Optional, in `%LOCALAPPDATA%\GoogleTakeoutPhotoSift\settings.json` (comments allowed):
+
+```jsonc
+{
+  "batchesRoot": "C:\\ties\\takeout\\batches",
+  "prefetchAhead": 4,      // sharp frames decoded ahead
+  "prefetchBehind": 2,     // and kept behind
+  "cacheMegabytes": 512,   // decoded frames
+  "fileCacheMegabytes": 150,
+  "showTiming": false
+}
+```
+
 ## Batch layout
 
 ```

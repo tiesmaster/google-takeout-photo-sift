@@ -642,6 +642,21 @@ Solution, projects, `global.json`, `Directory.Build.props`, `Directory.Packages.
 cached under 50 ms, uncached preview under 50 ms and sharp under 200 ms (p95). If sharp misses, try
 plan B (direct WIC).
 
+*Status (2026-11-18):* done. As built:
+- Golden tests agree with Python on all 63,211 files of the unsplit Takeout (sidecars) and all 9 real
+  batches (groups and order); the orientation reader agrees with ExifTool on 2,736 real images
+  (762 HEIC). Orientation values outside 1–8 (182 JPEGs have 0) count as upright, so unlike the Python
+  viewer they can be rotated.
+- `--bench` replaces driving the window with synthetic key presses (Windows won't give a background
+  process focus): it runs a fixed script through the normal command path and logs the timing.
+- After a jump, the current photo is decoded alone and prefetching starts once it's sharp; starting
+  everything at once made the current photo compete with its neighbours (sharp p95 218 → 89 ms).
+- Measured on 2013 (8–16 MP JPEGs, 3440×1369 box, 4 decode threads), WPF `BitmapImage` path, no
+  plan B needed: cached 1.7 ms p50 / 5 ms p95; held key 61 of 61 photos shown from a cached preview
+  (1–3 ms); uncached jumps first pixels 21–49 ms, sharp 36–89 ms; the first photo after start-up
+  ~150 ms (cold start).
+- HEIC shows a "decoder arrives in M2" message until `MagickDecoder` lands.
+
 **M2 — Feature parity with the Python viewer**
 - `ExifToolProcess`, `FileOpQueue`, rotate (with coalescing), delete (with Live Photo videos), undo,
   the delete journal with undo across restarts, quit waits, status messages, error paths.

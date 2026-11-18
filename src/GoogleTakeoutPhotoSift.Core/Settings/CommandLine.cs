@@ -8,12 +8,13 @@ public enum ReviewOrderMode
 
 /// <summary>
 /// <c>GoogleTakeoutPhotoSift &lt;year | batch path&gt; [--start N] [--order python] [--timing]
-/// [--batches-root PATH]</c>
+/// [--batches-root PATH] [--bench]</c>. <c>--bench</c> runs a scripted navigation, writes the timing log
+/// and window snapshots, and quits.
 /// </summary>
-public sealed record CommandLine(string Batch, int? Start, ReviewOrderMode Order, bool Timing, string? BatchesRoot)
+public sealed record CommandLine(string Batch, int? Start, ReviewOrderMode Order, bool Timing, string? BatchesRoot, bool Bench = false)
 {
     public const string Usage =
-        "Usage: GoogleTakeoutPhotoSift <year | batch path> [--start N] [--order python] [--timing] [--batches-root PATH]";
+        "Usage: GoogleTakeoutPhotoSift <year | batch path> [--start N] [--order python] [--timing] [--batches-root PATH] [--bench]";
 
     /// <summary>Parses the arguments; throws <see cref="FormatException"/> with a message for the user.</summary>
     public static CommandLine Parse(IReadOnlyList<string> args)
@@ -22,6 +23,7 @@ public sealed record CommandLine(string Batch, int? Start, ReviewOrderMode Order
         int? start = null;
         var order = ReviewOrderMode.Python;
         var timing = false;
+        var bench = false;
         string? root = null;
         for (var i = 0; i < args.Count; i++)
         {
@@ -43,6 +45,9 @@ public sealed record CommandLine(string Batch, int? Start, ReviewOrderMode Order
                 case "--timing":
                     timing = true;
                     break;
+                case "--bench":
+                    bench = true;
+                    break;
                 case "--batches-root":
                     root = Value(args, ref i, arg);
                     break;
@@ -57,7 +62,7 @@ public sealed record CommandLine(string Batch, int? Start, ReviewOrderMode Order
         }
         if (batch is null)
             throw new FormatException("Give a year (e.g. 2016) or a batch folder");
-        return new CommandLine(batch, start, order, timing, root);
+        return new CommandLine(batch, start, order, timing, root, bench);
     }
 
     private static string Value(IReadOnlyList<string> args, ref int i, string option)

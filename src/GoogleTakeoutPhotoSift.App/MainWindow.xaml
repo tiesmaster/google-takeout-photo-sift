@@ -4,10 +4,41 @@
         Title="Google Takeout Photo Sift"
         Width="1280" Height="800"
         WindowState="Maximized"
-        Background="Black">
-    <Grid>
-        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Foreground="#DDDDDD" FontFamily="Segoe UI" FontSize="20"
-                   Text="Google Takeout Photo Sift — Esc to quit" />
+        Background="Black"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <!-- A hard shadow keeps the text readable on light photos. -->
+        <Style x:Key="Overlay" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#DDDDDD" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" ShadowDepth="2" BlurRadius="2" Opacity="1" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid x:Name="PhotoArea" Background="Black" ClipToBounds="True">
+        <Image x:Name="Photo"
+               HorizontalAlignment="Center" VerticalAlignment="Center"
+               Stretch="Fill"
+               RenderOptions.BitmapScalingMode="HighQuality" />
+
+        <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14,10,0,0">
+            <TextBlock x:Name="Counter" Style="{StaticResource Overlay}" FontSize="22" />
+            <TextBlock x:Name="Status" Style="{StaticResource Overlay}" FontSize="15" Margin="0,2,0,0" />
+        </StackPanel>
+
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,10,0,0">
+            <TextBlock x:Name="Caption" Style="{StaticResource Overlay}" FontSize="19" HorizontalAlignment="Center" />
+            <TextBlock x:Name="SubCaption" Style="{StaticResource Overlay}" FontSize="14" HorizontalAlignment="Center"
+                       Foreground="#BBBBBB" />
+        </StackPanel>
+
+        <TextBlock x:Name="Timing" Style="{StaticResource Overlay}"
+                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,10"
+                   FontFamily="Consolas" FontWeight="Normal" FontSize="13" Visibility="Collapsed" />
     </Grid>
 </Window>
