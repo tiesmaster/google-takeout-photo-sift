@@ -82,6 +82,7 @@ public partial class MainWindow : Window
             ShowKeyHint(null);
         }, Dispatcher) { IsEnabled = false };
         InitStrip();
+        InitAlbumList();
         Timing.Visibility = settings.ShowTiming || commandLine.Timing ? Visibility.Visible : Visibility.Collapsed;
         Title = $"Google Takeout Photo Sift — {batchPath}";
         Counter.Text = "indexing…";
@@ -397,6 +398,9 @@ public partial class MainWindow : Window
             case Command.CopyPath:
                 CopyPath();
                 break;
+            case Command.ToggleAlbumList:
+                ToggleAlbumList();
+                break;
             case Command.ToggleStrip:
                 ToggleStrip();
                 break;
@@ -501,6 +505,7 @@ public partial class MainWindow : Window
         ShowBest();
         ScheduleAround();
         UpdateStrip();
+        UpdateAlbumList();
         UpdateInfo();
         _saveTimer.Stop();
         _saveTimer.Start();
@@ -637,6 +642,7 @@ public partial class MainWindow : Window
         _shownFrame = null;
         _shown = null;
         Counter.Text = "no photos left";
+        UpdateAlbumList();
         Caption.Text = _batchPath;
         SubCaption.Visibility = Visibility.Collapsed;
     }

@@ -71,7 +71,8 @@ after a restart.
 |  | `d` | Delete the photo and all its copies (to batches\deleted) |  |
 |  | `Delete` `Shift+Delete` | Shows that delete is d |  |
 |  | `z` `Ctrl+Z` | Undo the last delete |  |
-| **View** | `t` | Show or hide the thumbnail strip |  |
+| **View** | `s` | Show or hide the album list |  |
+|  | `t` | Show or hide the thumbnail strip |  |
 |  | `T` | More or fewer thumbnails: 5, 8 or 3 each side |  |
 |  | `f` `F11` `Enter` | Full screen |  |
 |  | `F12` | Timing overlay |  |

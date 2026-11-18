@@ -25,8 +25,24 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-    <Grid x:Name="PhotoArea" Grid.Row="0" Background="Black" ClipToBounds="True">
+        <!-- s: the albums in review order with their photo counts; the current one stands out. -->
+        <Border x:Name="AlbumList" Grid.Row="0" Grid.Column="0" Width="270" Background="#FF0C0C0C"
+                BorderBrush="#FF1E1E1E" BorderThickness="0,0,1,0">
+            <DockPanel>
+                <TextBlock x:Name="AlbumListTitle" DockPanel.Dock="Top" Foreground="#FF9A9A9A" FontFamily="Segoe UI"
+                           FontSize="12" FontWeight="SemiBold" Margin="14,12,10,8" />
+                <ScrollViewer x:Name="AlbumListScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="AlbumListItems" />
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+    <Grid x:Name="PhotoArea" Grid.Row="0" Grid.Column="1" Background="Black" ClipToBounds="True">
         <Image x:Name="Photo"
                HorizontalAlignment="Center" VerticalAlignment="Center"
                Stretch="Fill"
@@ -101,7 +117,7 @@
     </Grid>
 
         <!-- Thumbnail strip: N photos before and after the current one (t to hide, T for more or fewer). -->
-        <Border x:Name="Strip" Grid.Row="1" Background="#FF101010" Padding="0,4,0,6">
+        <Border x:Name="Strip" Grid.Row="1" Grid.ColumnSpan="2" Background="#FF101010" Padding="0,4,0,6">
             <StackPanel x:Name="StripCells" Orientation="Horizontal" HorizontalAlignment="Center" />
         </Border>
     </Grid>

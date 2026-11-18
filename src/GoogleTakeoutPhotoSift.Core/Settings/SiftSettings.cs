@@ -30,6 +30,9 @@ public sealed record SiftSettings
 
     public bool ShowStrip { get; init; } = true;
 
+    /// <summary>The album list on the left.</summary>
+    public bool ShowAlbumList { get; init; } = true;
+
     /// <summary>Thumbnails on each side of the current photo in the strip.</summary>
     public int StripPerSide { get; init; } = 5;
 

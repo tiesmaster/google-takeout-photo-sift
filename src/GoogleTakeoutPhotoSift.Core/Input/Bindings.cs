@@ -18,6 +18,7 @@ public enum Command
     Delete,
     DeleteKeyHint,
     Undo,
+    ToggleAlbumList,
     ToggleStrip,
     StripSize,
     ToggleFullScreen,
@@ -76,6 +77,7 @@ public static class Bindings
         // The Delete key itself does nothing but explain, so the habit doesn't silently fail.
         new(Command.DeleteKeyHint, ["Delete", "Shift+Delete"], Group.Edit, "Shows that delete is d", Repeat.Ignore),
         new(Command.Undo, ["z", "Ctrl+Z"], Group.Edit, "Undo the last delete", Repeat.Ignore),
+        new(Command.ToggleAlbumList, ["s"], Group.View, "Show or hide the album list", Repeat.Ignore),
         new(Command.ToggleStrip, ["t"], Group.View, "Show or hide the thumbnail strip", Repeat.Ignore),
         new(Command.StripSize, ["T"], Group.View, "More or fewer thumbnails: 5, 8 or 3 each side", Repeat.Ignore),
         new(Command.ToggleFullScreen, ["f", "F11", "Enter"], Group.View, "Full screen", Repeat.Ignore),
