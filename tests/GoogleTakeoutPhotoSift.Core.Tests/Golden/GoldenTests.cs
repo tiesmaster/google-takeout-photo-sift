@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Tiesmaster.GoogleTakeoutPhotoSift.Core.Batches;
+using Tiesmaster.GoogleTakeoutPhotoSift.Core.Exif;
 using Tiesmaster.GoogleTakeoutPhotoSift.Core.Index;
 
 namespace Tiesmaster.GoogleTakeoutPhotoSift.Core.Tests.Golden;
@@ -61,6 +62,29 @@ public class GoldenTests
                 }
             }
         }
+        Assert.True(mismatches.Count == 0, Report(mismatches));
+    }
+
+    [Fact]
+    public void Orientation_matches_exiftool()
+    {
+        var path = GoldenDir is null ? null : Path.Combine(Path.GetDirectoryName(GoldenDir)!, "orientations.json");
+        Assert.SkipWhen(path is null || !File.Exists(path), "No local/orientations.json; run tools/export_golden.py");
+        var expected = JsonSerializer.Deserialize<Dictionary<string, int?>>(File.ReadAllText(path!))!;
+        var mismatches = new List<string>();
+        var checkedCount = 0;
+        foreach (var (image, orientation) in expected)
+        {
+            if (!File.Exists(image))
+                continue;
+            checkedCount++;
+            var actual = OrientationReader.Read(image);
+            // Values outside 1-8 (some cameras write 0) count as upright, so they can still be rotated.
+            var normalized = orientation is >= 1 and <= 8 ? orientation.Value : 1;
+            if (actual != normalized)
+                mismatches.Add($"{image}: exiftool {orientation?.ToString() ?? "-"}, C# {actual}");
+        }
+        Assert.True(checkedCount > 0, "None of the images in orientations.json exist any more");
         Assert.True(mismatches.Count == 0, Report(mismatches));
     }
 

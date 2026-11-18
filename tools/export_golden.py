@@ -9,6 +9,9 @@ local/golden/<batch>.json with:
 It also writes local/golden/takeout-source.json with only the sidecar matching of
 the unsplit Takeout (all years), which covers far more of Takeout's naming quirks.
 
+And local/orientations.json: ExifTool's Orientation for every image in the batches and
+every HEIC in the unsplit Takeout, to check the C# orientation reader.
+
 local/ is git-ignored: these are your own file names. Re-run after a batch changes
 (photos deleted or moved), otherwise the golden test reports the difference.
 
@@ -19,6 +22,7 @@ Usage:
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -50,6 +54,19 @@ def export(batch, collect, match_sidecars):
     return {"batch": str(batch), "folders": folders, "photos": groups}
 
 
+def exiftool_orientations(roots_and_exts):
+    """{path: orientation or None} from ExifTool, for each (root, [extensions]) pair."""
+    result = {}
+    for root, exts in roots_and_exts:
+        args = ["exiftool", "-charset", "filename=utf8", "-j", "-n", "-q", "-q", "-Orientation", "-r"]
+        for ext in exts:
+            args += ["-ext", ext]
+        out = subprocess.run([*args, str(root)], capture_output=True, encoding="utf-8").stdout
+        for row in json.loads(out or "[]"):
+            result[str(Path(row["SourceFile"]))] = row.get("Orientation")
+    return result
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--scripts", type=Path, default=Path(r"C:\ties\takeout\scripts"),
@@ -77,6 +94,14 @@ def main():
         out.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         files = sum(len(f["names"]) for f in data["folders"].values())
         print(f"{out.name}: {files} files, {len(data['folders'])} folders (sidecars only)")
+
+    orientations = exiftool_orientations([
+        (args.batches, ["jpg", "jpeg", "png", "heic", "heif", "tif", "tiff", "webp"]),
+        (args.takeout, ["heic", "heif"]),
+    ])
+    out = args.out.parent / "orientations.json"
+    out.write_text(json.dumps(orientations, ensure_ascii=False, indent=0), encoding="utf-8")
+    print(f"{out.name}: {len(orientations)} images")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,10 @@
        library so they stay testable and survive a UI stack switch. -->
 
   <ItemGroup>
+    <PackageReference Include="MetadataExtractor" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="GoogleTakeoutPhotoSift.Core.Tests" />
   </ItemGroup>
 
