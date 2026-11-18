@@ -1,5 +1,4 @@
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -11,9 +10,6 @@ namespace Tiesmaster.GoogleTakeoutPhotoSift.App.Imaging;
 /// </summary>
 public static class WicDecoder
 {
-    // WINCODEC_ERR_COMPONENTNOTFOUND: no codec for this format (HEIC without the HEVC extension).
-    private const int ComponentNotFound = unchecked((int)0x88982F50);
-
     /// <summary>The stored width and height, read from the header only.</summary>
     public static (int Width, int Height) ReadSize(byte[] bytes)
     {
@@ -46,8 +42,4 @@ public static class WicDecoder
         result.Freeze();
         return result;
     }
-
-    public static bool IsMissingCodec(Exception e) =>
-        e is NotSupportedException || (e is COMException com && com.HResult == ComponentNotFound)
-        || (e.InnerException is COMException inner && inner.HResult == ComponentNotFound);
 }

@@ -4,6 +4,7 @@
     <Project Path="src/GoogleTakeoutPhotoSift.Core/GoogleTakeoutPhotoSift.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/GoogleTakeoutPhotoSift.App.Tests/GoogleTakeoutPhotoSift.App.Tests.csproj" />
     <Project Path="tests/GoogleTakeoutPhotoSift.Core.Tests/GoogleTakeoutPhotoSift.Core.Tests.csproj" />
   </Folder>
 </Solution>

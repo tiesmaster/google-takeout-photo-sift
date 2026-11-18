@@ -133,6 +133,9 @@ public sealed class FileOpQueue : IDisposable
             {
                 error = e.Message;
             }
+            // Not running any more before reporting, so the callback sees Pending without this op.
+            lock (_lock)
+                _running = 0;
             try
             {
                 _completed(op, error);
@@ -140,10 +143,7 @@ public sealed class FileOpQueue : IDisposable
             finally
             {
                 lock (_lock)
-                {
-                    _running = 0;
                     Monitor.PulseAll(_lock);
-                }
             }
         }
     }

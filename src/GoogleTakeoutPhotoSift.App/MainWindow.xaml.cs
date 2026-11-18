@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private readonly TimingLog _timingLog = new(Path.Combine(SiftSettings.AppDataFolder, "timing.csv"));
     private readonly DispatcherTimer _saveTimer;
     private readonly DispatcherTimer _resizeTimer;
+    private readonly DispatcherTimer _slowTimer;
     private readonly ResumeState _resume = ResumeState.Load();
     private readonly FileOpQueue _fileOps;
 
@@ -63,6 +64,8 @@ public partial class MainWindow : Window
         _saveTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => SaveResume(), Dispatcher)
             { IsEnabled = false };
         _resizeTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(120), DispatcherPriority.Normal, (_, _) => OnResized(), Dispatcher)
+            { IsEnabled = false };
+        _slowTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Normal, (_, _) => OnSlowFrame(), Dispatcher)
             { IsEnabled = false };
         Timing.Visibility = settings.ShowTiming || commandLine.Timing ? Visibility.Visible : Visibility.Collapsed;
         Title = $"Google Takeout Photo Sift — {batchPath}";
@@ -377,7 +380,24 @@ public partial class MainWindow : Window
         {
             Show(standIn, CacheHit.Preview);
         }
-        // Otherwise the previous frame stays up (with the new header) until a frame arrives.
+        else
+        {
+            // The previous frame stays up (with the new header) until a frame arrives; if that takes
+            // a while (a HEIC, about a second), dim it so it isn't mistaken for this photo.
+            _slowTimer.Stop();
+            _slowTimer.Start();
+        }
+    }
+
+    private void OnSlowFrame()
+    {
+        _slowTimer.Stop();
+        if (CurrentPhoto is { } photo && _shown?.Path != photo.Primary.Path)
+        {
+            Photo.Opacity = 0.25;
+            if (string.IsNullOrEmpty(Status.Text))
+                SetStatus("decoding…");
+        }
     }
 
     private void ScheduleAround()
@@ -444,6 +464,10 @@ public partial class MainWindow : Window
             return;
         }
         _orientations.TryAdd(frame.Path, frame.Orientation);
+        _slowTimer.Stop();
+        Photo.Opacity = 1;
+        if (Status.Text == "decoding…")
+            SetStatus("");
         Photo.Source = frame.Bitmap;
         _shownFrame = frame;
         Fit();

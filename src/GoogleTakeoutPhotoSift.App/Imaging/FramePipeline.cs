@@ -50,8 +50,7 @@ public sealed class FramePipeline : IDisposable
 
     // Rotations made in this session; they win over what's in the file, which ExifTool may not have
     // rewritten yet.
-    private readonly ConcurrentDictionary<string, int> _orientationOverrides = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Action<DecodedFrame> _onFrame;
+    private readonly ConcurrentDictionary<string, int> _orientationOverrides = new(StringComparer.OrdinalIgnoreCase);    private readonly Action<DecodedFrame> _onFrame;
     // A plain object, not System.Threading.Lock: the workers wait on it with Monitor.Wait.
     private readonly object _lock = new();
     private readonly List<FrameRequest> _queue = [];
@@ -196,31 +195,43 @@ public sealed class FramePipeline : IDisposable
         watch.Restart();
         try
         {
-            var header = _headers.GetOrAdd(request.Path, path =>
-            {
-                var (w, h) = WicDecoder.ReadSize(bytes);
-                return (w, h, _orientationOverrides.TryGetValue(path, out var o) ? o : OrientationReader.Read(bytes));
-            });
-            var scale = FrameGeometry.FitScale(header.W, header.H, header.Orientation, box.W, box.H);
-            var width = Math.Max(1, (int)Math.Round(header.W * scale));
-            if (request.Kind == FrameKind.Preview)
-                width = Math.Max(1, Math.Min(width, (width + 3) / 4));
-            var bitmap = WicDecoder.Decode(bytes, width);
-            return new DecodedFrame(request.Path, request.Kind, bitmap, header.W, header.H, header.Orientation, box,
-                bytes.Length, readMs, watch.Elapsed.TotalMilliseconds, null);
-        }
-        catch (Exception e) when (WicDecoder.IsMissingCodec(e)
-                                  && Path.GetExtension(request.Path) is var ext
-                                  && (ext.Equals(".heic", StringComparison.OrdinalIgnoreCase) || ext.Equals(".heif", StringComparison.OrdinalIgnoreCase)))
-        {
-            return Failed(request, box, "HEIC can't be shown yet: the Magick.NET decoder arrives in milestone 2");
+            // HEIC always goes through Magick.NET. WIC can't be trusted with it: without the HEVC
+            // extension it returns a blank 1×1 image instead of failing, and with it, it applies the
+            // HEIF rotation (irot) to the pixels, so the EXIF orientation would be applied twice.
+            // A preview wouldn't be cheaper with Magick.NET (it decodes the whole image anyway), so
+            // decode once at screen size; the sharp frame then serves as the preview too.
+            if (IsHeif(Path.GetExtension(request.Path)))
+                return DecodeWith(request, bytes, box, readMs, watch, MagickDecoder.ReadSize, MagickDecoder.Decode, allowPreview: false);
+            return DecodeWith(request, bytes, box, readMs, watch, WicDecoder.ReadSize, WicDecoder.Decode, allowPreview: true);
         }
         catch (Exception e) when (e is NotSupportedException or FileFormatException or IOException or ArgumentException
-                                  or InvalidOperationException or System.Runtime.InteropServices.COMException or OverflowException)
+                                  or InvalidOperationException or System.Runtime.InteropServices.COMException or OverflowException
+                                  or ImageMagick.MagickException)
         {
             return Failed(request, box, $"can't open: {e.Message}");
         }
     }
+
+    private DecodedFrame DecodeWith(FrameRequest request, byte[] bytes, (int W, int H) box, double readMs, Stopwatch watch,
+        Func<byte[], (int, int)> readSize, Func<byte[], int, BitmapSource> decode, bool allowPreview)
+    {
+        var header = _headers.GetOrAdd(request.Path, path =>
+        {
+            var (w, h) = readSize(bytes);
+            return (w, h, _orientationOverrides.TryGetValue(path, out var o) ? o : OrientationReader.Read(bytes));
+        });
+        var scale = FrameGeometry.FitScale(header.W, header.H, header.Orientation, box.W, box.H);
+        var width = Math.Max(1, (int)Math.Round(header.W * scale));
+        var kind = allowPreview ? request.Kind : FrameKind.Sharp;
+        if (kind == FrameKind.Preview)
+            width = Math.Max(1, Math.Min(width, (width + 3) / 4));
+        var bitmap = decode(bytes, width);
+        return new DecodedFrame(request.Path, kind, bitmap, header.W, header.H, header.Orientation, box,
+            bytes.Length, readMs, watch.Elapsed.TotalMilliseconds, null);
+    }
+
+    private static bool IsHeif(string extension) =>
+        extension.Equals(".heic", StringComparison.OrdinalIgnoreCase) || extension.Equals(".heif", StringComparison.OrdinalIgnoreCase);
 
     private static DecodedFrame Failed(FrameRequest request, (int W, int H) box, string error) =>
         new(request.Path, request.Kind, null, 0, 0, 1, box, 0, 0, 0, error);

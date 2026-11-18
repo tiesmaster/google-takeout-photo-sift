@@ -9,7 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- HEIC without the paid HEVC Video Extensions (decision 16). -->
+    <PackageReference Include="Magick.NET-Q8-x64" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\GoogleTakeoutPhotoSift.Core\GoogleTakeoutPhotoSift.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GoogleTakeoutPhotoSift.App.Tests" />
   </ItemGroup>
 
 </Project>

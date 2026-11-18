@@ -666,6 +666,27 @@ plan B (direct WIC).
 the Python viewer on another copy doing the same actions: the same files in `deleted\`, the same
 hashes in the batch. Then upload a test album with immich-go and check the rotation and the pairing.
 
+*Status (2026-11-18):* done, apart from the Immich checks, which need you (below). As built:
+- Rotate (`r`/`l`/`R`), delete (`d`), undo (`z`/`Ctrl+Z`), the Delete key hint and quitting after pending
+  writes, all through one ordered `FileOpQueue`; repeated rotations of a photo become one write.
+- Delete moves the photo, its album copies, their sidecars and the Live Photo video (decision 10);
+  `sift-journal.jsonl` lets undo reach deletes from earlier sessions (decision 8; the batch is read again
+  after such an undo).
+- Checked on a sandbox copy of `done\2011` with `--keys` (keys replayed through the dispatcher): after
+  `r r l` photo 9 and its album copy have orientation 6 and identical bytes, the deleted tree mirrors the
+  batch, and after undoing (also in a new session) the sandbox differs from the original only in the
+  two rotated files. ExifTool's `-P` keeps the modified time to about a microsecond (as in Python).
+- **HEIC never goes through WIC** (this changes decision 16): without the HEVC extension WIC returns a
+  blank 1×1 image instead of failing, and with it, WIC applies the HEIF `irot` rotation to the pixels,
+  so the EXIF orientation would be applied twice. Magick.NET with `heic:preserve-orientation` returns
+  the stored pixels (tested on real iPhone photos: without the define they come out portrait).
+- HEIC costs about 1 s per photo (libheif decodes single-threaded, ~750 ms for 24 MP, plus ~300 ms
+  scaling with `Scale`; Magick's thread setting makes no difference). At a reviewing pace prefetching
+  hides it; when it doesn't, the old photo is dimmed with "decoding…" after 150 ms.
+
+*Still to check by hand:* upload a few rotated photos (a JPEG and a HEIC) with immich-go to a test
+album, and see whether Immich shows the new rotation and pairs the album copies (decision 9).
+
 **M3 — The new requirements**, in this order:
 1. **M3a Review order**: albums first, home album, loose photos last, the header line
    `Album 3/23 · … · 12/120`, the album banner. `--order python` stays available.
@@ -705,5 +726,6 @@ Answered on 2026-11-18. The numbers are referred to elsewhere in the plan as "de
 13. **Timing target at 4K**: preview under 50 ms, sharp under 200 ms (uncached); cached stays under 50 ms.
 14. **Colour profiles**: ignored for speed (`BitmapCreateOptions.IgnoreColorProfile`).
 15. **Album folders directly in `batches\done\`**: known leftovers; ignored.
-16. **HEIC decoding**: Magick.NET as the fallback when WIC has no HEVC codec, so the paid HEVC
-    Video Extensions aren't needed (decided after decisions 1–15).
+16. **HEIC decoding**: Magick.NET, so the paid HEVC Video Extensions aren't needed (decided after
+    decisions 1–15). Changed in M2 from "fallback after WIC" to "always": WIC returns blank images
+    without the codec and applies `irot` with it (see the M2 status).
