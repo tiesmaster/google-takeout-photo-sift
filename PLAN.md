@@ -698,6 +698,23 @@ album, and see whether Immich shows the new rotation and pairs the album copies 
 
 *Try after each one:* review the next real year with it. After M3 the Python viewer is retired.
 
+*Status (2026-11-18):* M3a–M3d done, and from M3e the README table test; the release workflow is
+left for later. As built:
+- `Review` (Core) makes the album-first order the default; `--order python` keeps the old one.
+  Albums whose photos all show in an earlier album get no section but are listed (greyed) in the
+  picker; empty album folders are left out.
+- `KeyDispatcher` does two-key sequences with a 1.5 s timeout and the pending-key hint; an unknown
+  second key cancels without running. The table check rejects a key that both starts a sequence and is
+  bound on its own.
+- The strip rebuilds its 2N+1 cells per step; thumbnails come from a separate lowest-priority thread
+  (EXIF thumbnail, else a small WIC decode; HEIC from the pipeline's decoded frame).
+- The help overlay and the README table (`<!-- shortcuts -->` block, kept in sync by a test; run the
+  tests with `UPDATE_README=1` to rewrite it) are both generated from `Bindings.All`.
+- `--keys` also logs the header after each key to `keys.log`, and types into overlays (`type:…`);
+  scripted runs (`--bench`, `--keys`) don't move the resume position.
+- Measured again on 2013 with the strip on: cached 4.2 ms p50 / 7.6 ms p95 (was 1.7 / 5: the strip
+  rebuild), held key 3 ms from previews, uncached first pixels 36 ms p50, sharp 56 ms p50.
+
 ---
 
 ## 6. Decisions

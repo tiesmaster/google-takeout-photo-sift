@@ -87,6 +87,23 @@ public static class Bindings
         new(Command.Escape, ["Escape"], Group.Other, "Close overlay, leave full screen, else quit (after pending writes)", Repeat.Ignore),
     ];
 
+    /// <summary>The README's shortcut table (between its <c>&lt;!-- shortcuts --&gt;</c> markers).</summary>
+    public static string MarkdownTable()
+    {
+        var lines = new List<string> { "| Group | Keys | Action | Held key repeats |", "| --- | --- | --- | --- |" };
+        foreach (var group in Enum.GetValues<Group>())
+        {
+            var first = true;
+            foreach (var binding in All.Where(b => b.Group == group))
+            {
+                var keys = string.Join(" ", binding.Keys.Select(k => $"`{Display(k).Replace("|", "\\|")}`"));
+                lines.Add($"| {(first ? $"**{group}**" : "")} | {keys} | {binding.Description} | {(binding.Repeat == Repeat.Allow ? "yes" : "")} |");
+                first = false;
+            }
+        }
+        return string.Join("\n", lines);
+    }
+
     /// <summary>How a key looks in the help and the README: <c>Shift+→</c>, <c>PgDn</c>, <c>g a</c>.</summary>
     public static string Display(string key) =>
         string.Join(" ", key.Split(' ').Select(chord => string.Join("+", chord.Split('+').Select(part => part switch

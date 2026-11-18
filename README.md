@@ -33,27 +33,54 @@ dotnet watch --project src/GoogleTakeoutPhotoSift.App -- 2016
 ```
 
 A year is looked up in `C:\ties\takeout\batches\<year>`, then `batches\done\<year>`; a folder path
-works too. Options: `--start N` (photo number), `--timing` (show the timing overlay),
-`--batches-root PATH`, `--bench` (see below). The app reopens a batch where you left it.
+works too. Options: `--start N` (photo number), `--order albums|python`, `--timing` (show the timing
+overlay), `--batches-root PATH`, `--bench` (see below), `--keys "r d z"` (play keys and quit, for
+scripted checks). The app reopens a batch where you left it.
 
-## Keys (so far)
+## Review order
 
-| Keys | Action |
-| --- | --- |
-| `→` `j` `Space` `PageDown` | next photo |
-| `←` `k` `Backspace` `PageUp` | previous photo |
-| `Home` / `End` `G` | first / last photo |
-| `r` / `l` / `R` | rotate right / left / 180° (the photo and all its album copies) |
-| `d` | delete the photo, its album copies, sidecars and Live Photo video (moved to `batches\deleted`) |
-| `z` `Ctrl+Z` | undo the last delete (also deletes from earlier sessions) |
-| `f` `F11` `Enter` | full screen |
-| `F12` | timing overlay |
-| `Esc` | leave full screen, else quit (after pending writes) |
+Albums come first, ordered by the date of their first photo, then the photos that are in no album
+("loose photos"). A photo in several albums is reviewed once, in the first of them, and the header
+lists the others ("also in"). Within an album, photos are ordered by date taken. The header shows
+`Album 3/23 · Vakantie IJsland [2016] · 12/120`, and the strip below the photo shows its neighbours
+with album boundaries marked. `--order python` gives the old viewer's order instead.
 
-Holding `d` deletes one photo. Albums, the thumbnail strip and the rest follow in milestone 3 (see
-[PLAN.md](PLAN.md) §4).
+## Keys
 
-Every delete and undo is logged in `batches\deleted\<batch>\sift-journal.jsonl`.
+`?` shows all of them in the app. `g` starts a two-key sequence: a hint shows what can follow.
+Delete is `d`; holding it deletes one photo, and the `Delete` key only explains that.
+Every delete and undo is logged in `batches\deleted\<batch>\sift-journal.jsonl`, so undo also works
+after a restart.
+
+<!-- shortcuts -->
+| Group | Keys | Action | Held key repeats |
+| --- | --- | --- | --- |
+| **Navigate** | `→` `j` `Space` `PgDn` | Next photo | yes |
+|  | `←` `k` `Backspace` `PgUp` | Previous photo | yes |
+|  | `Home` `g g` | First photo of the batch |  |
+|  | `End` `G` | Last photo of the batch |  |
+|  | `:` `Ctrl+G` | Go to photo number |  |
+| **Albums** | `Shift+→` `J` `]` | First photo of the next album (the loose photos count as the last album) | yes |
+|  | `Shift+←` `K` `[` | Start of this album; at its start, the previous album | yes |
+|  | `g e` | Last photo of this album |  |
+|  | `g l` | First loose photo (in no album) |  |
+|  | `g a` | Album picker: type to filter, Up/Down, Enter to jump |  |
+| **Edit** | `r` | Rotate right 90° |  |
+|  | `l` | Rotate left 90° |  |
+|  | `R` | Rotate 180° |  |
+|  | `d` | Delete the photo and all its copies (to batches\deleted) |  |
+|  | `Delete` `Shift+Delete` | Shows that delete is d |  |
+|  | `z` `Ctrl+Z` | Undo the last delete |  |
+| **View** | `t` | Show or hide the thumbnail strip |  |
+|  | `T` | More or fewer thumbnails: 5, 8 or 3 each side |  |
+|  | `f` `F11` `Enter` | Full screen |  |
+|  | `F12` | Timing overlay |  |
+|  | `i` | Info panel: dates, camera, copies, albums, sidecar |  |
+| **Other** | `o` | Show the file in Explorer |  |
+|  | `y` | Copy the file path |  |
+|  | `?` | This help |  |
+|  | `Esc` | Close overlay, leave full screen, else quit (after pending writes) |  |
+<!-- /shortcuts -->
 
 ## Measuring speed
 
@@ -78,7 +105,9 @@ Optional, in `%LOCALAPPDATA%\GoogleTakeoutPhotoSift\settings.json` (comments all
   "prefetchBehind": 2,     // and kept behind
   "cacheMegabytes": 512,   // decoded frames
   "fileCacheMegabytes": 150,
-  "showTiming": false
+  "showTiming": false,
+  "showStrip": true,
+  "stripPerSide": 5        // thumbnails each side of the current photo
 }
 ```
 

@@ -822,7 +822,8 @@ public partial class MainWindow : Window
     private void SaveResume()
     {
         _saveTimer.Stop();
-        if (CurrentPhoto is not { } photo)
+        // Scripted runs (--bench, --keys) leave your place in the batch alone.
+        if (CurrentPhoto is not { } photo || _commandLine.Bench || _commandLine.Keys is not null)
             return;
         _resume.Batches[_batchPath] = new ResumeState.Position(Relative(photo.Primary.Path), _current);
         try
