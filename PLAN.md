@@ -176,7 +176,7 @@ sealed class Section { Album? Album; List<Photo> Photos; }   // Album == null �
    it's a copy if the JSON `photoTakenTime` is equal and non-null, **or** the sizes are equal and the
    bytes identical (size check first, then a streaming compare). Otherwise it's a separate photo.
    **New:** album-only photos are keyed in `byName` too, so the same shared-album photo in two albums
-   becomes one photo with a copy instead of two items (open question 3). The Python viewer would
+   becomes one photo with a copy instead of two items (decision 3). The Python viewer would
    show it twice, which breaks requirement 2.
 6. Take date: JSON `photoTakenTime`. If there is no JSON, EXIF `DateTimeOriginal` (read only for those
    few files). If neither exists, the photo sorts last in its section.
@@ -203,7 +203,7 @@ or different date.
 the flag, so the photo comes back exactly where it was, with no index bookkeeping (the Python version
 stores an index and reinserts). Counters ("1203 / 3311") count non-deleted photos; with about 3,500
 entries a recount after each delete or undo takes microseconds. Album numbering stays stable during a
-session (open question 4).
+session (decision 4).
 
 **Positions for the header**: per photo, precomputed `(sectionIndex, indexInSection)`, recounted
 after deletes. The header formats as:
@@ -214,8 +214,8 @@ after deletes. The header formats as:
 
 ### 2.2 Decode and cache pipeline
 
-**Goal**: under 50 ms from key to new frame on screen when cached, under 150 ms when not cached (12 MP
-JPEG), and a held key that flies through like IrfanView.
+**Goal** (decision 13): under 50 ms from key to new frame on screen when cached. When not cached (12 MP
+JPEG): a preview under 50 ms and the sharp frame under 200 ms. A held key flies through like IrfanView.
 
 **Budget on this machine**: fitting a 4000×3000 JPEG into 3840×2160 gives 2880×2160 at a scale of 0.72.
 That's above ½, so the JPEG decoder's DCT scaling (½, ¼, ⅛) can't help, and the sharp frame is close to a
@@ -385,23 +385,27 @@ finishes (the Python `jobs.join()`), and the UI never waits.
 3. If any step fails, revert the steps done so far in reverse, restore `users`, clear the `Deleted`
    flag, and show "delete failed: …" on the photo.
 4. Records are `(kind: move|copy|dedup|none, src, dst)`, the same as Python.
+5. **Live Photo video** (decision 10): a video next to the primary or a copy with the same stem
+   (`IMG_1234.HEIC` ↔ `IMG_1234.MOV`/`.MP4`, case-insensitive) is moved along with its sidecar, by the
+   same rules, so it comes back on undo. The index records these pairs during the scan, and the info
+   panel shows them.
 
 **Undo** (`z`/`Ctrl+Z`): pop the last undo entry, clear `Deleted` and jump to the photo at once, then
 enqueue `Undo(records)`. The worker reverts in reverse order: `copy` → delete dst, `dedup` → copy dst
 back to src, `move` → move back, restoring `users`. If the undo fails, the photo is marked deleted again
 and an error is shown.
 
-**Optional journal** (open question 8): append each completed delete and undo to
-`batches\deleted\<batch>\sift-journal.jsonl`. That gives an audit trail and an undo that survives a
-restart.
+**Journal** (decision 8): append each completed delete and undo, with its records, to
+`batches\deleted\<batch>\sift-journal.jsonl`. That gives an audit trail, and at startup the undo stack
+is rebuilt from the deletes that weren't undone, so `z` works across restarts.
 
 **HEIC note.** The Python viewer read `original_orientation` because pillow-heif hides it. In .NET,
 MetadataExtractor reads the EXIF Orientation straight from the HEIC's Exif item. HEIF also has its own
 container rotation (`irot`/`imir`), which Windows Photos and possibly Immich apply **instead of** EXIF.
 So M2 includes a check with a real iPhone HEIC from a batch: rotate it in Photo Sift, then look at it in
 Windows Photos and in Immich (after an upload to a test album). If the EXIF tag is ignored there,
-HEIC rotation needs a different approach (open question 9). Until that's settled, HEIC rotation could
-show a warning.
+HEIC rotation needs a different approach (decision 9). Until that's settled, rotating a HEIC shows a
+warning.
 
 ### 2.5 Keyboard dispatcher with sequences
 
@@ -457,7 +461,7 @@ The help overlay and the README table are generated from this table.
 | `match_sidecars`, `parse_json_name`, `media_keys`, `EDITED_SUFFIXES`, `DUP_RE` | `SidecarMatcher` | literal port, with `casefold` → `ToLowerInvariant` plus `StringComparison.OrdinalIgnoreCase`; the golden test checks they agree (§3.3) |
 | `taken_json_time` | `Sidecar.TakenTime` | `photoTakenTime.timestamp` as a string or number, ≤0 → null, unreadable → null |
 | `find_batch` | `BatchLocator` | path → `batches\<arg>` → `batches\done\<arg>`; with a clear error |
-| `collect` grouping | `Grouping` | same rule; new: album-only photos grouped across albums (Q3) |
+| `collect` grouping | `Grouping` | same rule; new: album-only photos grouped across albums (decision 3) |
 | `read_orientation` | `OrientationReader` | MetadataExtractor; HEIC through its Exif item, see §2.4 |
 | `CW_DEGREES`/`FROM_DEGREES` | `Orientation.Rotate(o, ±90/180)` | mirrored → null |
 | `ExifTool` class | `ExifToolProcess` | `-execute<id>`/`{ready<id>}`, UTF-8 without BOM |
@@ -560,7 +564,7 @@ for "go to", and arrow/IrfanView keys alongside.
 | | `:` `Ctrl+G` | go to photo number (box: type `1203` + Enter) | |
 | | mouse wheel | next / previous photo | |
 | **Albums** | `Shift+→` `J` `]` | first photo of the next album (loose photos count as the last album) | yes |
-| | `Shift+←` `K` `[` | first photo of the previous album; mid-album: start of this album first (Q5) | yes |
+| | `Shift+←` `K` `[` | first photo of the previous album; mid-album: start of this album first (decision 5) | yes |
 | | `g a` | album picker: type to filter, `↑`/`↓`, Enter to jump, Esc to close | |
 | | `g l` | first loose photo | |
 | | `g e` | last photo of the current album ("end") | |
@@ -618,12 +622,13 @@ workflow, one passing test.
   decode pipeline (bytes cache, preview then sharp, prefetch, generations, held-key mode), F11 / `f`,
   Esc, `--start`, resume position, timing overlay and CSV.
 *Try:* open 2013 and 2016 next to the Python viewer, with the same numbers on the same photos; hold
-`→` through 200 photos; read p50/p95 for cached and uncached from F12. **Decision point**: if the
-uncached sharp p95 is over 150 ms, try plan B (direct WIC), or accept "preview < 50 ms, sharp < 200 ms".
+`→` through 200 photos; read p50/p95 for cached and uncached from F12. **Targets** (decision 13):
+cached under 50 ms, uncached preview under 50 ms and sharp under 200 ms (p95). If sharp misses, try
+plan B (direct WIC).
 
 **M2 — Feature parity with the Python viewer**
-- `ExifToolProcess`, `FileOpQueue`, rotate (with coalescing), delete, undo, quit waits, status messages,
-  error paths.
+- `ExifToolProcess`, `FileOpQueue`, rotate (with coalescing), delete (with Live Photo videos), undo,
+  the delete journal with undo across restarts, quit waits, status messages, error paths.
 - The HEIC check from §2.4 (install the HEVC extension first).
 - Tests: delete/undo, shared sidecars, rotate and byte-identical copies.
 *Try:* review a copy of a small batch (or `done\2004`) completely with Photo Sift. Compare the result with
@@ -637,44 +642,36 @@ hashes in the batch. Then upload a test album with immich-go and check the rotat
    pending hint and table validation.
 3. **M3c Thumbnail strip**: `ThumbnailCache`, strip with album dividers, `t`/`T`, click to jump.
 4. **M3d Overlays**: help (`?`, generated), album picker (`g a`), go-to (`:`), info panel (`i`), `o`/`y`.
-5. **M3e Optional**: delete journal + undo across restarts, README shortcut table test, release workflow.
+5. **M3e Optional**: README shortcut table test, release workflow.
 
 *Try after each one:* review the next real year with it. After M3 the Python viewer is retired.
 
 ---
 
-## 6. Open questions
+## 6. Decisions
 
-1. **Album order**: by the date of the first photo (my proposal; reads as a timeline and puts albums
-   from earlier years in place), or by name?
-2. **Photos in several albums**: reviewed in the first album in review order, with "also in" shown
-   (proposal)? Or in the smallest (most specific) album?
-3. **The same album-only photo in two shared albums**: group it as one photo with a copy (proposal,
-   needed for "every photo once"), using the same name + date-or-bytes rule?
-4. **Album numbers after deletes**: keep `Album 3/23` stable for the session, so an album whose
-   photos were all deleted is skipped but still counted (proposal), or renumber?
-5. **`K` / `[` in the middle of an album**: first to the start of the current album, then to the
-   previous one (like "previous track", my proposal), or straight to the previous album as in your
-   description?
-6. **Undo scope**: only deletes (as now), or the last action including rotations?
-7. **Copies with the same date but different bytes** (matched by date, so immich-go won't pair them by
-   size): keep rotating each file separately (as now) and flag "copies differ" in the info panel, or
-   offer to make them identical, as `sync_album_copies.py` does?
-8. **Delete journal** in `batches\deleted\<batch>\sift-journal.jsonl`, so undo survives a restart: yes
-   or no?
-9. **HEIC rotation**: is it OK that M2 checks first whether Immich honours the EXIF orientation of a
-   HEIC (the HEIF `irot` box can override it)? If it doesn't, what's preferred: no HEIC rotation, or
-   writing `irot` as well (ExifTool can't do that; it would need another tool)?
-10. **Live Photos**: when a HEIC/JPG is deleted, should its paired video (same stem, `.MOV`/`.MP4`,
-    skipped by the viewer) move to `deleted` too? The Python viewer leaves it behind.
-11. **Loose photos in multi-year batches** (`2005_ideefiks_eigenlijk_2008`): one loose section sorted
-    by date (proposal), or one section per year folder?
-12. **Licence**: is MIT fine, and will the repository be public?
-13. **Timing target at 4K**: if a full 12 MP decode for 2880×2160 can't make 150 ms, is "sharp within
-    about 200 ms, with a preview within 50 ms" acceptable? Or should the sharp decode target the window
-    size at a lower resolution (for example ½ DCT, 2000×1500, upscaled, which is much faster but softer)?
-14. **Colour profiles**: ignore embedded ICC profiles for speed (proposal; almost all phone and camera
-    JPEGs are sRGB), or colour-manage?
-15. A side note: `batches\done\` contains album folders directly (`Bruiloft Emy en Wijnand`, `Parijs`,
-    …) next to the year folders. The year lookup ignores them, but are they leftovers from an earlier
-    split?
+Answered on 2026-11-18. The numbers are referred to elsewhere in the plan as "decision N".
+
+1. **Album order**: by the date of the album's first photo in the batch, title as tie-breaker.
+2. **Photos in several albums**: reviewed in the first album in review order; the other albums are
+   shown as "also in".
+3. **The same album-only photo in two shared albums**: one photo with a copy, grouped by the same rule
+   as year copies (same name, and the same JSON date or identical bytes).
+4. **Album numbers after deletes**: stable for the session. An album whose photos were all deleted is
+   skipped by jumps but still counted.
+5. **`K` / `[` in the middle of an album**: first to the start of the current album; at the start, to
+   the previous album.
+6. **Undo scope**: deletes only. A rotation is undone by rotating back.
+7. **Copies with the same date but different bytes**: rotate each file (as now) and flag "copies differ"
+   in the header and the info panel.
+8. **Delete journal**: yes. `batches\deleted\<batch>\sift-journal.jsonl`, so undo survives a restart
+   (part of M2).
+9. **HEIC rotation**: M2 checks first whether Windows Photos and Immich honour the EXIF orientation of a
+   HEIC; until that's settled, rotating a HEIC shows a warning. The approach is decided after the check.
+10. **Live Photos**: the paired video (same stem, `.MOV`/`.MP4`, in the same folder) and its sidecar
+    move to `deleted` with the photo, and come back on undo.
+11. **Loose photos in multi-year batches**: one loose section, sorted by date.
+12. **Licence**: MIT.
+13. **Timing target at 4K**: preview under 50 ms, sharp under 200 ms (uncached); cached stays under 50 ms.
+14. **Colour profiles**: ignored for speed (`BitmapCreateOptions.IgnoreColorProfile`).
+15. **Album folders directly in `batches\done\`**: known leftovers; ignored.
