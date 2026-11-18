@@ -15,6 +15,9 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Install ExifTool (for the rotation tests)
+        run: choco install exiftool --yes --no-progress
+
       - name: Restore
         run: dotnet restore
 

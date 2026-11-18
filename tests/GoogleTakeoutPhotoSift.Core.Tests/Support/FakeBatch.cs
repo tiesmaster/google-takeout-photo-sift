@@ -21,6 +21,27 @@ public sealed class FakeBatch : IDisposable
 
     public string BatchPath { get; }
 
+    /// <summary>The folder holding the batch, standing in for the real batches folder.</summary>
+    public string BatchesRoot => _tempRoot;
+
+    public string DeletedRoot => Path.Combine(_tempRoot, "deleted", Path.GetFileName(BatchPath), "Takeout", "Google Photos");
+
+    /// <summary>
+    /// Every file under the batches root (the batch and the deleted tree) with its content hash and
+    /// modified time, to compare before and after.
+    /// </summary>
+    public SortedDictionary<string, string> Snapshot()
+    {
+        var result = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var file in Directory.EnumerateFiles(_tempRoot, "*", SearchOption.AllDirectories))
+        {
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.IO.File.ReadAllBytes(file)));
+            result[Path.GetRelativePath(_tempRoot, file).Replace(Path.DirectorySeparatorChar, '/')] =
+                $"{hash[..12]} {System.IO.File.GetLastWriteTimeUtc(file):O}";
+        }
+        return result;
+    }
+
     public string PhotosRoot { get; }
 
     public string YearFolder => "Photos from 2016";

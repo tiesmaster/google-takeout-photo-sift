@@ -35,13 +35,15 @@ public sealed partial class BatchIndex
     private static partial Regex YearFolderRegex();
 
     private BatchIndex(string batchPath, List<Photo> photos, List<Album> albums,
-        Dictionary<string, string?> sidecars, Dictionary<string, HashSet<string>> sidecarUsers)
+        Dictionary<string, string?> sidecars, Dictionary<string, HashSet<string>> sidecarUsers,
+        Dictionary<string, string> livePhotoVideos)
     {
         BatchPath = batchPath;
         Photos = photos;
         Albums = albums;
         Sidecars = sidecars;
         SidecarUsers = sidecarUsers;
+        LivePhotoVideos = livePhotoVideos;
     }
 
     public string BatchPath { get; }
@@ -62,6 +64,15 @@ public sealed partial class BatchIndex
     /// </summary>
     public IReadOnlyDictionary<string, HashSet<string>> SidecarUsers { get; }
 
+    /// <summary>
+    /// Image path → the video of the same Live Photo: same name apart from the extension
+    /// (<c>.mov</c>/<c>.mp4</c>), in the same folder. A delete moves it along (decision 10).
+    /// </summary>
+    public IReadOnlyDictionary<string, string> LivePhotoVideos { get; }
+
+    public static readonly IReadOnlySet<string> LivePhotoVideoExtensions =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mov", ".mp4" };
+
     public static bool IsYearFolder(string folderName) => YearFolderRegex().IsMatch(folderName);
 
     public static BatchIndex Load(string batchPath, IndexOptions? options = null)
@@ -73,7 +84,8 @@ public sealed partial class BatchIndex
 
         var sidecars = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         var users = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-        var scanned = folders.ToDictionary(f => f, f => ScanFolder(root, f, sidecars, users));
+        var videos = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var scanned = folders.ToDictionary(f => f, f => ScanFolder(root, f, sidecars, users, videos));
 
         var yearPhotos = new List<List<MediaFile>>();
         var albumPhotos = new List<List<MediaFile>>();
@@ -117,7 +129,7 @@ public sealed partial class BatchIndex
         }
 
         var photos = yearPhotos.Concat(albumPhotos).Select(g => new Photo(g)).ToList();
-        return new BatchIndex(batchPath, photos, albums, sidecars, users);
+        return new BatchIndex(batchPath, photos, albums, sidecars, users, videos);
     }
 
     /// <summary>
@@ -152,7 +164,8 @@ public sealed partial class BatchIndex
     // The images of one folder, sorted by name ignoring case. Records every media file's sidecar (videos
     // too) along the way.
     private static List<MediaFile> ScanFolder(string root, string folder,
-        Dictionary<string, string?> sidecars, Dictionary<string, HashSet<string>> users)
+        Dictionary<string, string?> sidecars, Dictionary<string, HashSet<string>> users,
+        Dictionary<string, string> livePhotoVideos)
     {
         var dir = Path.Combine(root, folder);
         var names = Directory.EnumerateFiles(dir).Select(Path.GetFileName).OfType<string>().ToList();
@@ -171,6 +184,15 @@ public sealed partial class BatchIndex
             }
             if (ImageExtensions.Contains(Path.GetExtension(name)))
                 images.Add(new MediaFile(path, folder, jsonPath, jsonPath is null ? null : Sidecar.ReadTakenTime(jsonPath)));
+        }
+        // A video named like an image in this folder is that image's Live Photo video.
+        var videoByStem = names.Where(n => LivePhotoVideoExtensions.Contains(Path.GetExtension(n)))
+            .GroupBy(n => Path.GetFileNameWithoutExtension(n), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        foreach (var image in images)
+        {
+            if (videoByStem.TryGetValue(Path.GetFileNameWithoutExtension(image.Name), out var video))
+                livePhotoVideos[image.Path] = Path.Combine(dir, video);
         }
         return images;
     }

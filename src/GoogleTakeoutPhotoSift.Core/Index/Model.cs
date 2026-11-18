@@ -23,6 +23,12 @@ public sealed class Photo(IReadOnlyList<MediaFile> files)
 
     public int CopyCount => Files.Count - 1;
 
+    /// <summary>
+    /// Set while the photo is deleted in this session. The photo keeps its place in the list, so an
+    /// undo puts it back exactly where it was; navigation skips it.
+    /// </summary>
+    public bool Deleted { get; set; }
+
     public override string ToString() => $"{Primary.Folder}/{Primary.Name} (+{CopyCount})";
 }
 
