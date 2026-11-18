@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _saveTimer;
     private readonly DispatcherTimer _resizeTimer;
     private readonly DispatcherTimer _slowTimer;
+    private readonly DispatcherTimer _hintTimer;
     private readonly ResumeState _resume = ResumeState.Load();
     private readonly FileOpQueue _fileOps;
 
@@ -70,6 +71,11 @@ public partial class MainWindow : Window
             { IsEnabled = false };
         _slowTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Normal, (_, _) => OnSlowFrame(), Dispatcher)
             { IsEnabled = false };
+        _hintTimer = new DispatcherTimer(_dispatcher.Timeout, DispatcherPriority.Normal, (_, _) =>
+        {
+            _dispatcher.CancelPending();
+            ShowKeyHint(null);
+        }, Dispatcher) { IsEnabled = false };
         Timing.Visibility = settings.ShowTiming || commandLine.Timing ? Visibility.Visible : Visibility.Collapsed;
         Title = $"Google Takeout Photo Sift — {batchPath}";
         Counter.Text = "indexing…";
@@ -116,6 +122,7 @@ public partial class MainWindow : Window
     private async Task PlayKeysAsync(IReadOnlyList<string> keys)
     {
         await Task.Delay(1000);
+        var log = new List<string>();
         for (var i = 0; i < keys.Count; i++)
         {
             if (keys[i] == "wait")
@@ -123,11 +130,12 @@ public partial class MainWindow : Window
                 await Task.Delay(1000);
                 continue;
             }
-            if (_dispatcher.Dispatch(KeyChord.Parse(keys[i]), isRepeat: false) is { } command)
-                Execute(command, repeat: false, Stopwatch.GetTimestamp());
+            Dispatch(KeyChord.Parse(keys[i]), isRepeat: false);
             await Task.Delay(400);
             Snapshot($"keys-{i + 1:00}");
+            log.Add($"{i + 1:00} {keys[i],-6} | {Counter.Text} | {AlbumLine.Text} | {Caption.Text} | {SubCaption.Text} | {Status.Text} | {KeyHint.Text}");
         }
+        File.WriteAllLines(Path.Combine(SiftSettings.AppDataFolder, "keys.log"), log);
         Close();
     }
 
@@ -235,26 +243,38 @@ public partial class MainWindow : Window
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
         if (_keys.FromKeyDown(e) is { } chord)
-        {
-            if (_dispatcher.IsBound(chord))
-            {
-                e.Handled = true;
-                if (_dispatcher.Dispatch(chord, e.IsRepeat) is { } command)
-                    Execute(command, e.IsRepeat, Stopwatch.GetTimestamp());
-            }
-        }
+            e.Handled = Dispatch(chord, e.IsRepeat);
         base.OnPreviewKeyDown(e);
     }
 
     protected override void OnPreviewTextInput(TextCompositionEventArgs e)
     {
-        if (_keys.FromTextInput(e) is var (chord, isRepeat) && _dispatcher.IsBound(chord))
-        {
-            e.Handled = true;
-            if (_dispatcher.Dispatch(chord, isRepeat) is { } command)
-                Execute(command, isRepeat, Stopwatch.GetTimestamp());
-        }
+        if (_keys.FromTextInput(e) is var (chord, isRepeat))
+            e.Handled = Dispatch(chord, isRepeat);
         base.OnPreviewTextInput(e);
+    }
+
+    /// <summary>Runs a key press through the dispatcher; true when the key was ours.</summary>
+    private bool Dispatch(KeyChord chord, bool isRepeat)
+    {
+        var timestamp = Stopwatch.GetTimestamp();
+        var result = _dispatcher.Dispatch(chord, isRepeat);
+        if (!result.Handled)
+            return false;
+        ShowKeyHint(result.Hint);
+        if (result.Command is { } command)
+            Execute(command, isRepeat, timestamp);
+        return true;
+    }
+
+    /// <summary>The pending-key hint (after <c>g</c>), bottom left, until the sequence ends or lapses.</summary>
+    private void ShowKeyHint(string? hint)
+    {
+        _hintTimer.Stop();
+        KeyHint.Text = hint ?? "";
+        KeyHint.Visibility = hint is null ? Visibility.Collapsed : Visibility.Visible;
+        if (hint is not null)
+            _hintTimer.Start();
     }
 
     protected override void OnPreviewKeyUp(KeyEventArgs e)
@@ -290,6 +310,23 @@ public partial class MainWindow : Window
                 break;
             case Command.Last when Step(_review!.Photos.Count, -1) is int last:
                 GoTo(last, -1, repeat, timestamp);
+                break;
+            case Command.NextAlbum:
+                JumpToAlbum(1, repeat, timestamp);
+                break;
+            case Command.PreviousAlbum:
+                JumpToAlbum(-1, repeat, timestamp);
+                break;
+            case Command.AlbumEnd:
+                if (SectionBounds(_review.SectionIndexOf(_review.Photos[_current])) is var (_, end) && end >= 0)
+                    GoTo(end, -1, repeat, timestamp);
+                break;
+            case Command.LoosePhotos:
+                var looseSection = _review.Sections.Count - 1;
+                if (_review.Sections[looseSection].Album is null && !_review.IsPython && SectionBounds(looseSection).First >= 0)
+                    GoTo(SectionBounds(looseSection).First, 1, repeat, timestamp);
+                else
+                    SetStatus("no loose photos (every photo is in an album)");
                 break;
             case Command.RotateRight:
                 Rotate(90);
@@ -346,6 +383,39 @@ public partial class MainWindow : Window
             while (photos[i].Deleted);
         }
         return i;
+    }
+
+    /// <summary>The first and last photo of a section that aren't deleted; -1 when it has none.</summary>
+    private (int First, int Last) SectionBounds(int sectionIndex)
+    {
+        var section = _review!.Sections[sectionIndex];
+        var first = Step(section.Start - 1, 1) is int f && f < section.End ? f : -1;
+        var last = Step(section.End, -1) is int l && l >= section.Start ? l : -1;
+        return (first, last);
+    }
+
+    /// <summary>
+    /// Next album: its first photo (the loose photos count as the last album). Previous album: the start
+    /// of this one first, then the one before (decision 5). Albums whose photos are all deleted are skipped.
+    /// </summary>
+    private void JumpToAlbum(int direction, bool repeat, long timestamp)
+    {
+        var review = _review!;
+        var current = review.SectionIndexOf(review.Photos[_current]);
+        if (direction < 0 && SectionBounds(current).First is var start && start >= 0 && start < _current)
+        {
+            GoTo(start, -1, repeat, timestamp);
+            return;
+        }
+        for (var s = current + direction; s >= 0 && s < review.Sections.Count; s += direction)
+        {
+            if (SectionBounds(s).First is var first && first >= 0)
+            {
+                GoTo(first, direction, repeat, timestamp);
+                return;
+            }
+        }
+        SetStatus(direction > 0 ? "this is the last album" : "this is the first album");
     }
 
     private void GoTo(int index, int direction, bool repeat, long timestamp, bool keepStatus = false)

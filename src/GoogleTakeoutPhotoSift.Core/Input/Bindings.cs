@@ -6,6 +6,10 @@ public enum Command
     Previous,
     First,
     Last,
+    NextAlbum,
+    PreviousAlbum,
+    AlbumEnd,
+    LoosePhotos,
     RotateRight,
     RotateLeft,
     Rotate180,
@@ -33,7 +37,10 @@ public enum Repeat
     Ignore,
 }
 
-public sealed record Binding(Command Command, IReadOnlyList<string> Keys, Group Group, string Description, Repeat Repeat);
+/// <param name="Keys">Each a key (<c>j</c>, <c>Shift+Right</c>) or a two-key sequence (<c>g a</c>).</param>
+/// <param name="Short">A few words for the pending-key hint (<c>g …  a albums</c>); defaults to the description.</param>
+public sealed record Binding(Command Command, IReadOnlyList<string> Keys, Group Group, string Description, Repeat Repeat,
+    string? Short = null);
 
 /// <summary>
 /// Every keyboard shortcut, in one place. The help overlay and the README table are generated from it.
@@ -44,8 +51,14 @@ public static class Bindings
     [
         new(Command.Next, ["Right", "j", "Space", "PageDown"], Group.Navigate, "Next photo", Repeat.Allow),
         new(Command.Previous, ["Left", "k", "Backspace", "PageUp"], Group.Navigate, "Previous photo", Repeat.Allow),
-        new(Command.First, ["Home"], Group.Navigate, "First photo", Repeat.Ignore),
-        new(Command.Last, ["End", "G"], Group.Navigate, "Last photo", Repeat.Ignore),
+        new(Command.First, ["Home", "g g"], Group.Navigate, "First photo of the batch", Repeat.Ignore, "first"),
+        new(Command.Last, ["End", "G"], Group.Navigate, "Last photo of the batch", Repeat.Ignore),
+        new(Command.NextAlbum, ["Shift+Right", "J", "]"], Group.Albums,
+            "First photo of the next album (the loose photos count as the last album)", Repeat.Allow),
+        new(Command.PreviousAlbum, ["Shift+Left", "K", "["], Group.Albums,
+            "Start of this album; at its start, the previous album", Repeat.Allow),
+        new(Command.AlbumEnd, ["g e"], Group.Albums, "Last photo of this album", Repeat.Ignore, "album end"),
+        new(Command.LoosePhotos, ["g l"], Group.Albums, "First loose photo (in no album)", Repeat.Ignore, "loose"),
         new(Command.RotateRight, ["r"], Group.Edit, "Rotate right 90°", Repeat.Ignore),
         new(Command.RotateLeft, ["l"], Group.Edit, "Rotate left 90°", Repeat.Ignore),
         new(Command.Rotate180, ["R"], Group.Edit, "Rotate 180°", Repeat.Ignore),

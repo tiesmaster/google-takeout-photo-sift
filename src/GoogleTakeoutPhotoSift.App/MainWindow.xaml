@@ -38,6 +38,10 @@
                        Foreground="#BBBBBB" />
         </StackPanel>
 
+        <!-- The keys that can follow a sequence's first key (g …). -->
+        <TextBlock x:Name="KeyHint" Style="{StaticResource Overlay}" FontSize="15"
+                   HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="14,0,0,10" Visibility="Collapsed" />
+
         <!-- Shown for a moment when the review crosses into another album. -->
         <Border x:Name="AlbumBanner" HorizontalAlignment="Center" VerticalAlignment="Center"
                 Background="#B0000000" CornerRadius="8" Padding="28,14" Opacity="0" IsHitTestVisible="False">
