@@ -3,4 +3,8 @@
   <!-- No WPF here: the index, sidecar rules, file operations, ExifTool and key bindings live in this
        library so they stay testable and survive a UI stack switch. -->
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="GoogleTakeoutPhotoSift.Core.Tests" />
+  </ItemGroup>
+
 </Project>
