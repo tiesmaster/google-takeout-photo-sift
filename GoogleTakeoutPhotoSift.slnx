@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/GoogleTakeoutPhotoSift.App/GoogleTakeoutPhotoSift.App.csproj" />
+    <Project Path="src/GoogleTakeoutPhotoSift.Cli/GoogleTakeoutPhotoSift.Cli.csproj" />
     <Project Path="src/GoogleTakeoutPhotoSift.Core/GoogleTakeoutPhotoSift.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">

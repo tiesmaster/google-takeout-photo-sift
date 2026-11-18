@@ -83,6 +83,23 @@ after a restart.
 |  | `Esc` | Close overlay, leave full screen, else quit (after pending writes) |  |
 <!-- /shortcuts -->
 
+## Removing twins
+
+Some photos are in a batch twice under different names: the camera original (`IMG_0576.JPG`, stored
+landscape with an EXIF rotation) and a copy some app turned upright and saved again
+(`2013-09-13 21.05.57.jpg`). The command-line tool finds them: same taken time to the second, one with
+orientation 3/6/8 and the other upright with matching size, in the same albums, and the same picture
+by fingerprint. It removes the re-encoded copy:
+
+```powershell
+dotnet run --project src/GoogleTakeoutPhotoSift.Cli -- dedupe 2013            # dry run: lists what it would do
+dotnet run --project src/GoogleTakeoutPhotoSift.Cli -- dedupe 2013 --apply    # close Photo Sift first
+dotnet run --project src/GoogleTakeoutPhotoSift.Cli -- undo-dedupe 2013       # puts the last run back
+```
+
+Removed twins go to `batches\deleted` like any delete, with their album copies and sidecars, and
+are journalled, so `z` in the viewer can also bring them back one by one.
+
 ## Measuring speed
 
 `F12` shows the time from key press to photo on screen, with p50/p95 for cached and uncached photos.

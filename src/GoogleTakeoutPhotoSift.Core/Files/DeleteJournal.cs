@@ -14,7 +14,8 @@ public sealed class DeleteJournal(string path)
         string Id,
         DateTimeOffset Time,
         string? Photo = null,
-        IReadOnlyList<MoveRecord>? Records = null);
+        IReadOnlyList<MoveRecord>? Records = null,
+        string? Run = null);
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -27,8 +28,9 @@ public sealed class DeleteJournal(string path)
 
     public string Path { get; } = path;
 
-    public void AppendDelete(string id, string photo, IReadOnlyList<MoveRecord> records) =>
-        Append(new Entry("delete", id, DateTimeOffset.Now, photo, records));
+    /// <param name="run">Groups the deletes of one bulk run (such as a dedupe), so they can be undone together.</param>
+    public void AppendDelete(string id, string photo, IReadOnlyList<MoveRecord> records, string? run = null) =>
+        Append(new Entry("delete", id, DateTimeOffset.Now, photo, records, run));
 
     public void AppendUndo(string id) => Append(new Entry("undo", id, DateTimeOffset.Now));
 

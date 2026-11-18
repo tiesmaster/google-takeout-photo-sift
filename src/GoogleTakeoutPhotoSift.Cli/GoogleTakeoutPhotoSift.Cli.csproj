@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Batch commands for the terminal (the viewer is a Windows app and can't print there). Uses the
+       viewer's decoders for fingerprints, and Core for the index and deletes. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GoogleTakeoutPhotoSift.App\GoogleTakeoutPhotoSift.App.csproj" />
+    <ProjectReference Include="..\GoogleTakeoutPhotoSift.Core\GoogleTakeoutPhotoSift.Core.csproj" />
+  </ItemGroup>
+
+</Project>
