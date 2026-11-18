@@ -34,6 +34,18 @@ public sealed class LruCache<TKey, TValue>(long budgetBytes, Func<TValue, long> 
         return false;
     }
 
+    public void Remove(TKey key)
+    {
+        lock (_lock)
+        {
+            if (_map.Remove(key, out var node))
+            {
+                _order.Remove(node);
+                _size -= node.Value.Size;
+            }
+        }
+    }
+
     public void Set(TKey key, TValue value)
     {
         var size = sizeOf(value);

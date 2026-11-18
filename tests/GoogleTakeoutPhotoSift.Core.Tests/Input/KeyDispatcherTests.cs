@@ -28,6 +28,27 @@ public class KeyDispatcherTests
         Assert.Null(_dispatcher.Dispatch(new KeyChord("g"), false));
     }
 
+    [Theory]
+    [InlineData("r", Command.RotateRight)]
+    [InlineData("l", Command.RotateLeft)]
+    [InlineData("R", Command.Rotate180)]
+    [InlineData("d", Command.Delete)]
+    [InlineData("Delete", Command.DeleteKeyHint)]
+    [InlineData("z", Command.Undo)]
+    [InlineData("Ctrl+Z", Command.Undo)]
+    public void Edit_keys(string key, Command expected)
+    {
+        Assert.Equal(expected, _dispatcher.Dispatch(KeyChord.Parse(key), isRepeat: false));
+    }
+
+    [Fact]
+    public void Holding_delete_deletes_one_photo()
+    {
+        Assert.Equal(Command.Delete, _dispatcher.Dispatch(new KeyChord("d"), isRepeat: false));
+        Assert.Null(_dispatcher.Dispatch(new KeyChord("d"), isRepeat: true));
+        Assert.Null(_dispatcher.Dispatch(new KeyChord("z"), isRepeat: true));
+    }
+
     [Fact]
     public void Navigation_repeats_while_held()
     {

@@ -47,6 +47,10 @@ public sealed class FramePipeline : IDisposable
     private readonly LruCache<string, DecodedFrame> _preview;
     private readonly LruCache<string, byte[]> _bytes;
     private readonly ConcurrentDictionary<string, (int W, int H, int Orientation)> _headers = new(StringComparer.OrdinalIgnoreCase);
+
+    // Rotations made in this session; they win over what's in the file, which ExifTool may not have
+    // rewritten yet.
+    private readonly ConcurrentDictionary<string, int> _orientationOverrides = new(StringComparer.OrdinalIgnoreCase);
     private readonly Action<DecodedFrame> _onFrame;
     // A plain object, not System.Threading.Lock: the workers wait on it with Monitor.Wait.
     private readonly object _lock = new();
@@ -98,6 +102,32 @@ public sealed class FramePipeline : IDisposable
         if (_sharp.TryGet(path, out var sharp))
             return sharp;
         return _preview.TryGet(path, out var preview) ? preview : null;
+    }
+
+    /// <summary>Drops a cached error, e.g. one from while the file was moved away by a delete.</summary>
+    public void ForgetErrors(string path)
+    {
+        if (_sharp.TryGet(path, out var frame) && frame.Error is not null)
+            _sharp.Remove(path);
+        if (_preview.TryGet(path, out var preview) && preview.Error is not null)
+            _preview.Remove(path);
+    }
+
+    /// <summary>
+    /// Records a rotation. The cached pixels stay valid (only the tag changes), but after a quarter turn
+    /// the sharp frame no longer fits the box, so it's dropped and decoded again at the new size.
+    /// </summary>
+    public void SetOrientation(string path, int orientation)
+    {
+        _orientationOverrides[path] = orientation;
+        if (_headers.TryGetValue(path, out var header))
+        {
+            _headers[path] = (header.W, header.H, orientation);
+            if (FrameGeometry.SwapsAxes(header.Orientation) != FrameGeometry.SwapsAxes(orientation))
+                _sharp.Remove(path);
+        }
+        // ExifTool rewrites the file; don't keep the old bytes around.
+        _bytes.Remove(path);
     }
 
     /// <summary>
@@ -166,10 +196,10 @@ public sealed class FramePipeline : IDisposable
         watch.Restart();
         try
         {
-            var header = _headers.GetOrAdd(request.Path, _ =>
+            var header = _headers.GetOrAdd(request.Path, path =>
             {
                 var (w, h) = WicDecoder.ReadSize(bytes);
-                return (w, h, OrientationReader.Read(bytes));
+                return (w, h, _orientationOverrides.TryGetValue(path, out var o) ? o : OrientationReader.Read(bytes));
             });
             var scale = FrameGeometry.FitScale(header.W, header.H, header.Orientation, box.W, box.H);
             var width = Math.Max(1, (int)Math.Round(header.W * scale));

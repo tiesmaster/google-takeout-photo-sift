@@ -9,6 +9,8 @@ using System.Windows.Threading;
 using Tiesmaster.GoogleTakeoutPhotoSift.App.Diagnostics;
 using Tiesmaster.GoogleTakeoutPhotoSift.App.Imaging;
 using Tiesmaster.GoogleTakeoutPhotoSift.App.Input;
+using Tiesmaster.GoogleTakeoutPhotoSift.Core.Exif;
+using Tiesmaster.GoogleTakeoutPhotoSift.Core.Files;
 using Tiesmaster.GoogleTakeoutPhotoSift.Core.Index;
 using Tiesmaster.GoogleTakeoutPhotoSift.Core.Input;
 using Tiesmaster.GoogleTakeoutPhotoSift.Core.Settings;
@@ -31,8 +33,14 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _saveTimer;
     private readonly DispatcherTimer _resizeTimer;
     private readonly ResumeState _resume = ResumeState.Load();
+    private readonly FileOpQueue _fileOps;
+
+    // The orientation of each photo as shown: read from the file once, then changed by rotations.
+    private readonly Dictionary<string, int> _orientations = new(StringComparer.OrdinalIgnoreCase);
 
     private BatchIndex? _index;
+    private Deletions? _deletions;
+    private DecodedFrame? _shownFrame;
     private int _current;
     private int _direction = 1;
     private bool _holding;
@@ -50,6 +58,8 @@ public partial class MainWindow : Window
         _settings = settings;
         _batchPath = batchPath;
         _pipeline = new FramePipeline(settings, frame => Dispatcher.BeginInvoke(() => OnFrame(frame)));
+        _fileOps = new FileOpQueue(() => new ExifToolProcess(settings.ExifToolPath),
+            (op, error) => Dispatcher.BeginInvoke(() => OnFileOpCompleted(op, error)));
         _saveTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => SaveResume(), Dispatcher)
             { IsEnabled = false };
         _resizeTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(120), DispatcherPriority.Normal, (_, _) => OnResized(), Dispatcher)
@@ -66,34 +76,53 @@ public partial class MainWindow : Window
         };
     }
 
-    private Photo? CurrentPhoto => _index is { Photos.Count: > 0 } index ? index.Photos[_current] : null;
+    private Photo? CurrentPhoto =>
+        _index is { Photos.Count: > 0 } index && !index.Photos[_current].Deleted ? index.Photos[_current] : null;
+
+    private string BatchesRoot => _commandLine.BatchesRoot ?? _settings.BatchesRoot;
 
     private async Task LoadIndexAsync()
     {
         UpdateBox();
         var watch = Stopwatch.StartNew();
-        try
-        {
-            // M1 only has the Python order; the album-first order arrives in milestone 3.
-            _index = await Task.Run(() => BatchIndex.Load(_batchPath, IndexOptions.Python));
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            Counter.Text = "";
-            SetStatus($"can't read the batch: {e.Message}", error: true);
+        if (!await ReloadIndexAsync())
             return;
-        }
+        var copies = _index!.Photos.Sum(p => p.CopyCount);
+        var undo = _deletions!.UndoStack.Count;
+        SetStatus($"{_index.Photos.Count} photos, {copies} album copies linked, indexed in {watch.ElapsedMilliseconds} ms"
+                  + (undo > 0 ? $" · {undo} earlier deletes can be undone (z)" : ""));
         if (_index.Photos.Count == 0)
         {
-            Counter.Text = "no photos";
-            Caption.Text = _batchPath;
+            ShowEmpty();
             return;
         }
-        var copies = _index.Photos.Sum(p => p.CopyCount);
-        SetStatus($"{_index.Photos.Count} photos, {copies} album copies linked, indexed in {watch.ElapsedMilliseconds} ms");
         GoTo(StartIndex(), direction: 1, repeat: false, Stopwatch.GetTimestamp(), keepStatus: true);
         if (_commandLine.Bench)
             await RunBenchmarkAsync();
+        else if (_commandLine.Keys is { } keys)
+            await PlayKeysAsync(keys);
+    }
+
+    /// <summary>
+    /// <c>--keys</c>: plays keys through the dispatcher like real key presses, with a snapshot after
+    /// each (keys-NN.png next to timing.csv), then quits once pending writes are done.
+    /// </summary>
+    private async Task PlayKeysAsync(IReadOnlyList<string> keys)
+    {
+        await Task.Delay(1000);
+        for (var i = 0; i < keys.Count; i++)
+        {
+            if (keys[i] == "wait")
+            {
+                await Task.Delay(1000);
+                continue;
+            }
+            if (_dispatcher.Dispatch(KeyChord.Parse(keys[i]), isRepeat: false) is { } command)
+                Execute(command, repeat: false, Stopwatch.GetTimestamp());
+            await Task.Delay(400);
+            Snapshot($"keys-{i + 1:00}");
+        }
+        Close();
     }
 
     /// <summary>
@@ -148,6 +177,29 @@ public partial class MainWindow : Window
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var file = File.Create(Path.Combine(SiftSettings.AppDataFolder, $"{name}.png"));
         encoder.Save(file);
+    }
+
+    /// <summary>(Re)reads the batch from disk; the undo stack carries over. False when it can't be read.</summary>
+    private async Task<bool> ReloadIndexAsync()
+    {
+        try
+        {
+            // Only the Python order so far; the album-first order arrives in milestone 3.
+            var index = await Task.Run(() => BatchIndex.Load(_batchPath, IndexOptions.Python));
+            _index = index;
+            if (_deletions is null)
+                _deletions = new Deletions(index, BatchesRoot);
+            else
+                _deletions.Use(index);
+            _current = Math.Clamp(_current, 0, Math.Max(0, index.Photos.Count - 1));
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Counter.Text = "";
+            SetStatus($"can't read the batch: {e.Message}", error: true);
+            return false;
+        }
     }
 
     private int StartIndex()
@@ -212,19 +264,39 @@ public partial class MainWindow : Window
 
     private void Execute(Command command, bool repeat, long timestamp)
     {
+        if (_index is null)
+            return;
         switch (command)
         {
-            case Command.Next:
-                GoTo(_current + 1, 1, repeat, timestamp);
+            case Command.Next when Step(_current, 1) is int next:
+                GoTo(next, 1, repeat, timestamp);
                 break;
-            case Command.Previous:
-                GoTo(_current - 1, -1, repeat, timestamp);
+            case Command.Previous when Step(_current, -1) is int previous:
+                GoTo(previous, -1, repeat, timestamp);
                 break;
-            case Command.First:
-                GoTo(0, 1, repeat, timestamp);
+            case Command.First when Step(-1, 1) is int first:
+                GoTo(first, 1, repeat, timestamp);
                 break;
-            case Command.Last:
-                GoTo((_index?.Photos.Count ?? 1) - 1, -1, repeat, timestamp);
+            case Command.Last when Step(_index.Photos.Count, -1) is int last:
+                GoTo(last, -1, repeat, timestamp);
+                break;
+            case Command.RotateRight:
+                Rotate(90);
+                break;
+            case Command.RotateLeft:
+                Rotate(-90);
+                break;
+            case Command.Rotate180:
+                Rotate(180);
+                break;
+            case Command.Delete:
+                Delete();
+                break;
+            case Command.DeleteKeyHint:
+                SetStatus("delete is d (it moves the photo to batches\\deleted; Photo Sift never deletes permanently)");
+                break;
+            case Command.Undo:
+                Undo();
                 break;
             case Command.ToggleFullScreen:
                 ToggleFullScreen();
@@ -244,11 +316,34 @@ public partial class MainWindow : Window
 
     // ---- navigation and display ----
 
+    /// <summary>
+    /// The photo <paramref name="steps"/> places from <paramref name="from"/> in
+    /// <paramref name="direction"/>, skipping deleted photos; null past either end.
+    /// </summary>
+    private int? Step(int from, int direction, int steps = 1)
+    {
+        var photos = _index!.Photos;
+        var i = from;
+        for (var n = 0; n < steps; n++)
+        {
+            do
+            {
+                i += direction;
+                if (i < 0 || i >= photos.Count)
+                    return null;
+            }
+            while (photos[i].Deleted);
+        }
+        return i;
+    }
+
     private void GoTo(int index, int direction, bool repeat, long timestamp, bool keepStatus = false)
     {
         if (_index is not { Photos.Count: > 0 } batch)
             return;
         index = Math.Clamp(index, 0, batch.Photos.Count - 1);
+        if (batch.Photos[index].Deleted)
+            return;
         if (index == _current && _shown is not null)
             return;
         if (_timing is not null)
@@ -300,23 +395,17 @@ public partial class MainWindow : Window
             _pipeline.Schedule(wanted);
             return;
         }
-        for (var i = 1; i <= _settings.PrefetchAhead; i++)
+        var ahead = (int?)_current;
+        for (var i = 1; i <= _settings.PrefetchAhead && (ahead = Step(ahead!.Value, _direction)) is not null; i++)
         {
-            var ahead = _current + _direction * i;
-            if (ahead >= 0 && ahead < batch.Photos.Count)
-            {
-                // While a key is held, only cheap previews: a sharp decode would be stale before it's done.
-                wanted.Add(new FrameRequest(batch.Photos[ahead].Primary.Path, _holding ? FrameKind.Preview : FrameKind.Sharp, 1 + i));
-            }
+            // While a key is held, only cheap previews: a sharp decode would be stale before it's done.
+            wanted.Add(new FrameRequest(batch.Photos[ahead.Value].Primary.Path, _holding ? FrameKind.Preview : FrameKind.Sharp, 1 + i));
         }
         if (!_holding)
         {
-            for (var i = 1; i <= _settings.PrefetchBehind; i++)
-            {
-                var behind = _current - _direction * i;
-                if (behind >= 0 && behind < batch.Photos.Count)
-                    wanted.Add(new FrameRequest(batch.Photos[behind].Primary.Path, FrameKind.Sharp, 10 + i));
-            }
+            var behind = (int?)_current;
+            for (var i = 1; i <= _settings.PrefetchBehind && (behind = Step(behind!.Value, -_direction)) is not null; i++)
+                wanted.Add(new FrameRequest(batch.Photos[behind.Value].Primary.Path, FrameKind.Sharp, 10 + i));
         }
         _pipeline.Schedule(wanted);
     }
@@ -354,16 +443,38 @@ public partial class MainWindow : Window
             CompleteTiming(frame, hit, sharp: true);
             return;
         }
+        _orientations.TryAdd(frame.Path, frame.Orientation);
         Photo.Source = frame.Bitmap;
-        Photo.LayoutTransform = OrientationTransform(frame.Orientation);
+        _shownFrame = frame;
+        Fit();
+        _shown = (frame.Path, frame.Kind);
+        CompleteTiming(frame, hit, frame.Kind == FrameKind.Sharp && FrameGeometry.BoxMatches(frame.Box, _pipeline.Box));
+    }
+
+    /// <summary>Sizes and turns the shown frame for its current orientation (also right after a rotation).</summary>
+    private void Fit()
+    {
+        if (_shownFrame is not { Bitmap: not null } frame)
+            return;
+        var orientation = _orientations.GetValueOrDefault(frame.Path, frame.Orientation);
+        Photo.LayoutTransform = OrientationTransform(orientation);
         var (dpiX, dpiY) = DeviceScale();
         var box = _pipeline.Box;
-        var scale = FrameGeometry.FitScale(frame.StoredWidth, frame.StoredHeight, frame.Orientation, box.W, box.H);
+        var scale = FrameGeometry.FitScale(frame.StoredWidth, frame.StoredHeight, orientation, box.W, box.H);
         // Width and height before the layout transform: the stored image's size on screen, in DIPs.
         Photo.Width = Math.Round(frame.StoredWidth * scale) / dpiX;
         Photo.Height = Math.Round(frame.StoredHeight * scale) / dpiY;
-        _shown = (frame.Path, frame.Kind);
-        CompleteTiming(frame, hit, frame.Kind == FrameKind.Sharp && FrameGeometry.BoxMatches(frame.Box, box));
+    }
+
+    /// <summary>No photo to show: everything is deleted, or the batch is empty.</summary>
+    private void ShowEmpty()
+    {
+        Photo.Source = null;
+        _shownFrame = null;
+        _shown = null;
+        Counter.Text = "no photos left";
+        Caption.Text = _batchPath;
+        SubCaption.Visibility = Visibility.Collapsed;
     }
 
     private static Transform OrientationTransform(int orientation) => orientation switch
@@ -382,15 +493,24 @@ public partial class MainWindow : Window
     {
         if (CurrentPhoto is not { } photo)
             return;
-        Counter.Text = $"{_current + 1} / {_index!.Photos.Count}";
-        Caption.Text = $"{photo.Primary.Folder} / {photo.Primary.Name}";
-        SubCaption.Text = photo.CopyCount switch
+        var photos = _index!.Photos;
+        var position = 1;
+        for (var i = 0; i < _current; i++)
         {
-            0 => "",
-            1 => $"+1 album copy: {photo.Files[1].Folder}",
-            var n => $"+{n} album copies: {string.Join(", ", photo.Files.Skip(1).Select(f => f.Folder))}",
-        };
-        SubCaption.Visibility = photo.CopyCount == 0 ? Visibility.Collapsed : Visibility.Visible;
+            if (!photos[i].Deleted)
+                position++;
+        }
+        Counter.Text = $"{position} / {photos.Count(p => !p.Deleted)}";
+        Caption.Text = $"{photo.Primary.Folder} / {photo.Primary.Name}";
+        var notes = new List<string>();
+        if (photo.CopyCount == 1)
+            notes.Add($"+1 album copy: {photo.Files[1].Folder}");
+        else if (photo.CopyCount > 1)
+            notes.Add($"+{photo.CopyCount} album copies: {string.Join(", ", photo.Files.Skip(1).Select(f => f.Folder))}");
+        if (_index.LivePhotoVideos.TryGetValue(photo.Primary.Path, out var video))
+            notes.Add($"Live Photo: {Path.GetFileName(video)}");
+        SubCaption.Text = string.Join("   ·   ", notes);
+        SubCaption.Visibility = notes.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void SetStatus(string text, bool error = false)
@@ -519,6 +639,11 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        if (!ReadyToClose())
+        {
+            e.Cancel = true;
+            return;
+        }
         SaveResume();
         if (_timing is not null)
             _timingLog.Complete(_timing);
@@ -527,6 +652,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _fileOps.Dispose();
         _pipeline.Dispose();
         _timingLog.Dispose();
         base.OnClosed(e);
