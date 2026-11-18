@@ -16,7 +16,7 @@ Stack (decided): C# / .NET 11 (the latest release), WPF, Windows 11 only, WIC fo
 | .NET SDK | 8.0.400 is installed, but the plan targets **.NET 11**: `winget install Microsoft.DotNet.SDK.11` (11.0.100 in winget today). It's an STS release, supported 24 months, so until about November 2028, the same end date as .NET 10 LTS (`Microsoft.DotNet.SDK.10`, 10.0.404). If an 11 problem shows up, going back to 10 means changing two lines (`global.json`, `Directory.Build.props`). |
 | ExifTool | 13.59 on `PATH` (`%LOCALAPPDATA%\Programs\ExifTool`) |
 | HEIF Image Extensions | installed (1.2.65) |
-| **HEVC Video Extensions** | **not installed**. Without it WIC can't decode HEIC (the HEIF extension only provides the container; the pixels are HEVC). Install *HEVC Video Extensions* (Microsoft Store, €0.99) or the free *HEVC Video Extensions from Device Manufacturer* if the Store still offers it to you, e.g. `winget install --source msstore --id 9NMZLZ57R3T7`. Check the ID in the Store first. |
+| HEVC Video Extensions | not installed, and not needed: HEIC is decoded with **Magick.NET** (§2.2). WIC alone can't decode HEIC without this paid Store codec (€0.99, `9NMZLZ57R3T7`); if it's ever installed, WIC is tried first and is faster. |
 | WebP / Raw extensions | installed (WebP covers the occasional `.webp`) |
 | Display | a 3840×2160 monitor. "Screen size" here means up to 8 MP per decoded frame, which matters for the timing budget (§2.2) |
 
@@ -65,7 +65,7 @@ google-takeout-photo-sift/
 │  │  └─ Settings/  SiftSettings, ResumeState
 │  └─ GoogleTakeoutPhotoSift.App/  net11.0-windows, UseWPF, WinExe
 │     ├─ App.xaml, Program/CommandLine
-│     ├─ Imaging/   WicDecoder, DecodeScheduler, FrameCache, ThumbnailCache, FileBytesCache
+│     ├─ Imaging/   IImageDecoder, WicDecoder, MagickDecoder, DecodeScheduler, FrameCache, ThumbnailCache, FileBytesCache
 │     ├─ Views/     MainWindow, PhotoView, ThumbnailStrip, HeaderOverlay, HelpOverlay,
 │     │             AlbumPicker, GoToBox, InfoPanel, PendingKeyHint, TimingOverlay
 │     ├─ Input/     WpfKeyTranslator (KeyDown/TextInput → KeyChord)
@@ -84,8 +84,9 @@ stack switch keeps them. The App only translates WPF key events into chords.
   thumbnail offsets, also from HEIC. JSON with `System.Text.Json`.
 - Tests: `xunit`, `xunit.runner.visualstudio`, `Microsoft.NET.Test.Sdk`. Plain `Assert` (I'm skipping
   FluentAssertions because v8 changed to a commercial licence).
-- App: nothing beyond WPF at first. If WPF's `BitmapImage` scaling turns out too slow, go to WIC directly
-  through `Vortice.WIC` or CsWin32 (§2.2).
+- App: `Magick.NET-Q8-x64` (Apache-2.0; bundles ImageMagick with libheif and libde265, LGPL) for HEIC
+  decoding (§2.2). It adds about 30 MB of native DLLs to the output. If WPF's `BitmapImage` scaling turns
+  out too slow, go to WIC directly through `Vortice.WIC` or CsWin32 (§2.2).
 
 **Build and run**
 
@@ -113,7 +114,7 @@ strip thumbnails per side (default 5), cache budget in MB (default 512), prefetc
 album order, timing overlay on/off.
 
 **README**: what it is, the review workflow (split_year → sift → immich-go), requirements (Windows 11,
-.NET 11 Desktop Runtime, ExifTool on PATH, HEIF + HEVC extensions), install/build, the shortcut table (generated
+.NET 11 Desktop Runtime, ExifTool on PATH; HEIC works without extra codecs), install/build, the shortcut table (generated
 from the binding table by a small test, so it can't go stale; see §3.4), safety promises ("never deletes,
 never re-encodes"), and the batch layout.
 
@@ -249,9 +250,20 @@ So the plan measures two numbers: **first pixels** (preview or sharp) and **shar
   - WPF doesn't apply EXIF orientation itself, so the decoder returns stored pixels and `PhotoView`
     applies a `LayoutTransform` (rotate, plus flip for 2/4/5/7). A rotation is then an instant transform
     change that needs no re-decode.
-  - **HEIC**: same path through the WIC HEIF codec (needs both extensions, §0). Orientation is read with
-    MetadataExtractor from the file, never from what the decoder reports as decoded. A test fixture
-    settles whether WIC already applies the HEIF `irot` transform (see the HEIC note in §2.4).
+  - **HEIC**: `IImageDecoder` has two implementations. `WicDecoder` handles everything WIC can decode
+    and is tried first. When WIC reports a missing codec (`WINCODEC_ERR_COMPONENTNOTFOUND`, which is what
+    happens without the HEVC extension), `MagickDecoder` decodes the file with Magick.NET instead, and
+    the choice is remembered per extension for the rest of the session. MagickDecoder reads the bytes
+    from memory (`MagickImage(byte[], settings)`), scales with `Thumbnail` to the target size (or decodes
+    the embedded preview for the strip), converts to BGRA and wraps the buffer with
+    `BitmapSource.Create(...).Freeze()`. Software HEVC decoding of a 12 MP HEIC is expected at about
+    150–300 ms, so the preview step (embedded thumbnail first) matters more here; the timing log records
+    the decoder per photo. The 762 HEIC files across all batches are about 2.5% of the photos.
+    Orientation is always read with MetadataExtractor from the file, never from the decoder. libheif
+    applies the HEIF `irot`/`imir` transforms while decoding by default, so the decoded pixels may already
+    be upright; a fixture test (an iPhone HEIC with `irot` plus EXIF Orientation 6) pins down what
+    MagickDecoder returns, and the decoder then compensates so `PhotoView` always gets stored pixels plus
+    one orientation to apply (see the HEIC note in §2.4).
   - Plan B if the measured sharp decode is too slow: WIC directly (`IWICBitmapSourceTransform` /
     `IWICBitmapScaler` with `WICBitmapInterpolationModeFant` through Vortice.WIC), still producing a
     `BitmapSource` via `BitmapSource.Create` from the buffer.
@@ -401,9 +413,9 @@ is rebuilt from the deletes that weren't undone, so `z` works across restarts.
 
 **HEIC note.** The Python viewer read `original_orientation` because pillow-heif hides it. In .NET,
 MetadataExtractor reads the EXIF Orientation straight from the HEIC's Exif item. HEIF also has its own
-container rotation (`irot`/`imir`), which Windows Photos and possibly Immich apply **instead of** EXIF.
-So M2 includes a check with a real iPhone HEIC from a batch: rotate it in Photo Sift, then look at it in
-Windows Photos and in Immich (after an upload to a test album). If the EXIF tag is ignored there,
+container rotation (`irot`/`imir`), which libheif, Windows Photos and possibly Immich apply **instead
+of** EXIF. So M2 includes a check with a real iPhone HEIC from a batch: rotate it in Photo Sift, then look
+at it in Immich (after an upload to a test album) and in Photo Sift itself after a restart. If the EXIF tag is ignored there,
 HEIC rotation needs a different approach (decision 9). Until that's settled, rotating a HEIC shows a
 warning.
 
@@ -629,7 +641,7 @@ plan B (direct WIC).
 **M2 — Feature parity with the Python viewer**
 - `ExifToolProcess`, `FileOpQueue`, rotate (with coalescing), delete (with Live Photo videos), undo,
   the delete journal with undo across restarts, quit waits, status messages, error paths.
-- The HEIC check from §2.4 (install the HEVC extension first).
+- `MagickDecoder` and the HEIC check from §2.4.
 - Tests: delete/undo, shared sidecars, rotate and byte-identical copies.
 *Try:* review a copy of a small batch (or `done\2004`) completely with Photo Sift. Compare the result with
 the Python viewer on another copy doing the same actions: the same files in `deleted\`, the same
@@ -666,8 +678,7 @@ Answered on 2026-11-18. The numbers are referred to elsewhere in the plan as "de
    in the header and the info panel.
 8. **Delete journal**: yes. `batches\deleted\<batch>\sift-journal.jsonl`, so undo survives a restart
    (part of M2).
-9. **HEIC rotation**: M2 checks first whether Windows Photos and Immich honour the EXIF orientation of a
-   HEIC; until that's settled, rotating a HEIC shows a warning. The approach is decided after the check.
+9. **HEIC rotation**: M2 checks first whether Immich honours the EXIF orientation of a HEIC; until that's settled, rotating a HEIC shows a warning. The approach is decided after the check.
 10. **Live Photos**: the paired video (same stem, `.MOV`/`.MP4`, in the same folder) and its sidecar
     move to `deleted` with the photo, and come back on undo.
 11. **Loose photos in multi-year batches**: one loose section, sorted by date.
@@ -675,3 +686,5 @@ Answered on 2026-11-18. The numbers are referred to elsewhere in the plan as "de
 13. **Timing target at 4K**: preview under 50 ms, sharp under 200 ms (uncached); cached stays under 50 ms.
 14. **Colour profiles**: ignored for speed (`BitmapCreateOptions.IgnoreColorProfile`).
 15. **Album folders directly in `batches\done\`**: known leftovers; ignored.
+16. **HEIC decoding**: Magick.NET as the fallback when WIC has no HEVC codec, so the paid HEVC
+    Video Extensions aren't needed (decided after decisions 1–15).
