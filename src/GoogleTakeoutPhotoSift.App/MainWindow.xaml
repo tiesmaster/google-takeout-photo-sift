@@ -32,10 +32,17 @@
         </StackPanel>
 
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,10,0,0">
-            <TextBlock x:Name="Caption" Style="{StaticResource Overlay}" FontSize="19" HorizontalAlignment="Center" />
+            <TextBlock x:Name="AlbumLine" Style="{StaticResource Overlay}" FontSize="19" HorizontalAlignment="Center" />
+            <TextBlock x:Name="Caption" Style="{StaticResource Overlay}" FontSize="15" HorizontalAlignment="Center" />
             <TextBlock x:Name="SubCaption" Style="{StaticResource Overlay}" FontSize="14" HorizontalAlignment="Center"
                        Foreground="#BBBBBB" />
         </StackPanel>
+
+        <!-- Shown for a moment when the review crosses into another album. -->
+        <Border x:Name="AlbumBanner" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="#B0000000" CornerRadius="8" Padding="28,14" Opacity="0" IsHitTestVisible="False">
+            <TextBlock x:Name="AlbumBannerText" Foreground="White" FontFamily="Segoe UI" FontWeight="SemiBold" FontSize="34" />
+        </Border>
 
         <TextBlock x:Name="Timing" Style="{StaticResource Overlay}"
                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,10"

@@ -2,12 +2,15 @@ namespace Tiesmaster.GoogleTakeoutPhotoSift.Core.Settings;
 
 public enum ReviewOrderMode
 {
+    /// <summary>Albums first by their first photo's date, then the loose photos (the default).</summary>
+    Albums,
+
     /// <summary>rotate_viewer.py's order and grouping, so photo numbers match the Python viewer.</summary>
     Python,
 }
 
 /// <summary>
-/// <c>GoogleTakeoutPhotoSift &lt;year | batch path&gt; [--start N] [--order python] [--timing]
+/// <c>GoogleTakeoutPhotoSift &lt;year | batch path&gt; [--start N] [--order albums|python] [--timing]
 /// [--batches-root PATH] [--bench] [--keys "r d z"]</c>. <c>--bench</c> runs a scripted navigation,
 /// writes the timing log and window snapshots, and quits. <c>--keys</c> plays the given keys
 /// (space-separated, as in the binding table; <c>wait</c> pauses a second), snapshots after each, waits
@@ -18,14 +21,14 @@ public sealed record CommandLine(
     IReadOnlyList<string>? Keys = null)
 {
     public const string Usage =
-        "Usage: GoogleTakeoutPhotoSift <year | batch path> [--start N] [--order python] [--timing] [--batches-root PATH] [--bench] [--keys \"r d z\"]";
+        "Usage: GoogleTakeoutPhotoSift <year | batch path> [--start N] [--order albums|python] [--timing] [--batches-root PATH] [--bench] [--keys \"r d z\"]";
 
     /// <summary>Parses the arguments; throws <see cref="FormatException"/> with a message for the user.</summary>
     public static CommandLine Parse(IReadOnlyList<string> args)
     {
         string? batch = null;
         int? start = null;
-        var order = ReviewOrderMode.Python;
+        var order = ReviewOrderMode.Albums;
         var timing = false;
         var bench = false;
         IReadOnlyList<string>? keys = null;
@@ -43,8 +46,9 @@ public sealed record CommandLine(
                 case "--order":
                     order = Value(args, ref i, arg).ToLowerInvariant() switch
                     {
+                        "albums" => ReviewOrderMode.Albums,
                         "python" => ReviewOrderMode.Python,
-                        var other => throw new FormatException($"Unknown order '{other}' (supported: python)"),
+                        var other => throw new FormatException($"Unknown order '{other}' (albums or python)"),
                     };
                     break;
                 case "--timing":

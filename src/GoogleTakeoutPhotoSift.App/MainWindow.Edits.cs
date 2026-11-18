@@ -138,7 +138,7 @@ public partial class MainWindow
                     if (entry.Photo is { } photoBack && !reload)
                     {
                         photoBack.Deleted = true;
-                        if (_index!.Photos[_current] == photoBack && (Step(_current, 1) ?? Step(_current, -1)) is int away)
+                        if (_review!.Photos[_current] == photoBack && (Step(_current, 1) ?? Step(_current, -1)) is int away)
                             GoTo(away, 1, repeat: false, Stopwatch.GetTimestamp());
                     }
                     SetStatus(error, error: true);
@@ -165,13 +165,13 @@ public partial class MainWindow
     {
         if (!await ReloadIndexAsync())
             return;
-        var index = _index!.Photos
+        var index = _review!.Photos
             .Select((p, i) => (p, i))
             .FirstOrDefault(x => string.Equals(Relative(x.p.Primary.Path), photoRelative, StringComparison.OrdinalIgnoreCase), (null!, -1)).Item2;
         _shown = null;
         if (index >= 0)
         {
-            _pipeline.ForgetErrors(_index.Photos[index].Primary.Path);
+            _pipeline.ForgetErrors(_review!.Photos[index].Primary.Path);
             GoTo(index, 1, repeat: false, Stopwatch.GetTimestamp());
             SetStatus($"restored {Path.GetFileName(photoRelative)} (deleted in an earlier session)");
         }
@@ -204,7 +204,7 @@ public partial class MainWindow
 
     private int IndexOf(Photo photo)
     {
-        var photos = _index!.Photos;
+        var photos = _review!.Photos;
         for (var i = 0; i < photos.Count; i++)
         {
             if (ReferenceEquals(photos[i], photo))

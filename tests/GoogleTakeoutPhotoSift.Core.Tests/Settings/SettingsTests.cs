@@ -9,7 +9,7 @@ public sealed class SettingsTests : IDisposable
     [Fact]
     public void CommandLine_with_year_only()
     {
-        Assert.Equal(new CommandLine("2016", null, ReviewOrderMode.Python, false, null), CommandLine.Parse(["2016"]));
+        Assert.Equal(new CommandLine("2016", null, ReviewOrderMode.Albums, false, null), CommandLine.Parse(["2016"]));
     }
 
     [Fact]
@@ -25,6 +25,7 @@ public sealed class SettingsTests : IDisposable
     [InlineData("2016", "--start")]
     [InlineData("2016", "--start", "0")]
     [InlineData("2016", "--order", "name")]
+    [InlineData("2016", "--order")]
     [InlineData("2016", "--nope")]
     [InlineData("2016", "2017")]
     public void CommandLine_errors(params string[] args)

@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Tiesmaster.GoogleTakeoutPhotoSift.App.Diagnostics;
@@ -40,8 +41,10 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, int> _orientations = new(StringComparer.OrdinalIgnoreCase);
 
     private BatchIndex? _index;
+    private Review? _review;
     private Deletions? _deletions;
     private DecodedFrame? _shownFrame;
+    private int? _shownSection;
     private int _current;
     private int _direction = 1;
     private bool _holding;
@@ -80,7 +83,7 @@ public partial class MainWindow : Window
     }
 
     private Photo? CurrentPhoto =>
-        _index is { Photos.Count: > 0 } index && !index.Photos[_current].Deleted ? index.Photos[_current] : null;
+        _review is { Photos.Count: > 0 } review && !review.Photos[_current].Deleted ? review.Photos[_current] : null;
 
     private string BatchesRoot => _commandLine.BatchesRoot ?? _settings.BatchesRoot;
 
@@ -90,11 +93,11 @@ public partial class MainWindow : Window
         var watch = Stopwatch.StartNew();
         if (!await ReloadIndexAsync())
             return;
-        var copies = _index!.Photos.Sum(p => p.CopyCount);
+        var copies = _review!.Photos.Sum(p => p.CopyCount);
         var undo = _deletions!.UndoStack.Count;
-        SetStatus($"{_index.Photos.Count} photos, {copies} album copies linked, indexed in {watch.ElapsedMilliseconds} ms"
+        SetStatus($"{_review!.Photos.Count} photos, {copies} album copies linked, indexed in {watch.ElapsedMilliseconds} ms"
                   + (undo > 0 ? $" · {undo} earlier deletes can be undone (z)" : ""));
-        if (_index.Photos.Count == 0)
+        if (_review!.Photos.Count == 0)
         {
             ShowEmpty();
             return;
@@ -187,9 +190,14 @@ public partial class MainWindow : Window
     {
         try
         {
-            // Only the Python order so far; the album-first order arrives in milestone 3.
-            var index = await Task.Run(() => BatchIndex.Load(_batchPath, IndexOptions.Python));
+            var python = _commandLine.Order == ReviewOrderMode.Python;
+            var (index, review) = await Task.Run(() =>
+            {
+                var loaded = BatchIndex.Load(_batchPath, python ? IndexOptions.Python : new IndexOptions());
+                return (loaded, python ? Review.Python(loaded) : Review.AlbumFirst(loaded));
+            });
             _index = index;
+            _review = review;
             if (_deletions is null)
                 _deletions = new Deletions(index, BatchesRoot);
             else
@@ -207,14 +215,14 @@ public partial class MainWindow : Window
 
     private int StartIndex()
     {
-        var count = _index!.Photos.Count;
+        var count = _review!.Photos.Count;
         if (_commandLine.Start is int start)
             return Math.Clamp(start - 1, 0, count - 1);
         if (_resume.Batches.TryGetValue(_batchPath, out var position))
         {
             for (var i = 0; i < count; i++)
             {
-                if (string.Equals(Relative(_index.Photos[i].Primary.Path), position.RelativePath, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(Relative(_review!.Photos[i].Primary.Path), position.RelativePath, StringComparison.OrdinalIgnoreCase))
                     return i;
             }
             return Math.Clamp(position.Index, 0, count - 1);
@@ -267,7 +275,7 @@ public partial class MainWindow : Window
 
     private void Execute(Command command, bool repeat, long timestamp)
     {
-        if (_index is null)
+        if (_review is null)
             return;
         switch (command)
         {
@@ -280,7 +288,7 @@ public partial class MainWindow : Window
             case Command.First when Step(-1, 1) is int first:
                 GoTo(first, 1, repeat, timestamp);
                 break;
-            case Command.Last when Step(_index.Photos.Count, -1) is int last:
+            case Command.Last when Step(_review!.Photos.Count, -1) is int last:
                 GoTo(last, -1, repeat, timestamp);
                 break;
             case Command.RotateRight:
@@ -325,7 +333,7 @@ public partial class MainWindow : Window
     /// </summary>
     private int? Step(int from, int direction, int steps = 1)
     {
-        var photos = _index!.Photos;
+        var photos = _review!.Photos;
         var i = from;
         for (var n = 0; n < steps; n++)
         {
@@ -342,7 +350,7 @@ public partial class MainWindow : Window
 
     private void GoTo(int index, int direction, bool repeat, long timestamp, bool keepStatus = false)
     {
-        if (_index is not { Photos.Count: > 0 } batch)
+        if (_review is not { Photos.Count: > 0 } batch)
             return;
         index = Math.Clamp(index, 0, batch.Photos.Count - 1);
         if (batch.Photos[index].Deleted)
@@ -402,7 +410,7 @@ public partial class MainWindow : Window
 
     private void ScheduleAround()
     {
-        if (_index is not { Photos.Count: > 0 } batch)
+        if (_review is not { Photos.Count: > 0 } batch)
             return;
         var wanted = new List<FrameRequest>();
         var path = batch.Photos[_current].Primary.Path;
@@ -517,7 +525,7 @@ public partial class MainWindow : Window
     {
         if (CurrentPhoto is not { } photo)
             return;
-        var photos = _index!.Photos;
+        var photos = _review!.Photos;
         var position = 1;
         for (var i = 0; i < _current; i++)
         {
@@ -525,16 +533,50 @@ public partial class MainWindow : Window
                 position++;
         }
         Counter.Text = $"{position} / {photos.Count(p => !p.Deleted)}";
+
+        // Album 3/23 · Vakantie IJsland [2016] · 12/120, counting photos that aren't deleted.
+        var review = _review;
+        var sectionIndex = review.SectionIndexOf(photo);
+        var section = review.Sections[sectionIndex];
+        var inSection = 1;
+        for (var i = section.Start; i < _current; i++)
+        {
+            if (!photos[i].Deleted)
+                inSection++;
+        }
+        var sectionCount = section.Photos.Count(p => !p.Deleted);
+        AlbumLine.Text = review.IsPython ? ""
+            : section.Album is null ? $"Loose photos · {inSection}/{sectionCount}"
+            : $"Album {sectionIndex + 1}/{review.AlbumCount} · {section.Title} · {inSection}/{sectionCount}";
+        AlbumLine.Visibility = review.IsPython ? Visibility.Collapsed : Visibility.Visible;
+        if (_shownSection is int previous && previous != sectionIndex && !review.IsPython)
+            ShowBanner(section.Title);
+        _shownSection = sectionIndex;
+
         Caption.Text = $"{photo.Primary.Folder} / {photo.Primary.Name}";
         var notes = new List<string>();
         if (photo.CopyCount == 1)
             notes.Add($"+1 album copy: {photo.Files[1].Folder}");
         else if (photo.CopyCount > 1)
             notes.Add($"+{photo.CopyCount} album copies: {string.Join(", ", photo.Files.Skip(1).Select(f => f.Folder))}");
-        if (_index.LivePhotoVideos.TryGetValue(photo.Primary.Path, out var video))
+        var alsoIn = review.AlbumsOf(photo).Skip(review.IsPython ? 0 : 1).Select(a => a.Title).ToList();
+        if (alsoIn.Count > 0)
+            notes.Add((review.IsPython ? "in: " : "also in: ") + string.Join(", ", alsoIn));
+        if (_index!.LivePhotoVideos.TryGetValue(photo.Primary.Path, out var video))
             notes.Add($"Live Photo: {Path.GetFileName(video)}");
         SubCaption.Text = string.Join("   ·   ", notes);
         SubCaption.Visibility = notes.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>The album title in the middle of the screen for a second, fading out.</summary>
+    private void ShowBanner(string title)
+    {
+        AlbumBannerText.Text = title;
+        var fade = new DoubleAnimationUsingKeyFrames();
+        fade.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        fade.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(900))));
+        fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1300))));
+        AlbumBanner.BeginAnimation(OpacityProperty, fade);
     }
 
     private void SetStatus(string text, bool error = false)
