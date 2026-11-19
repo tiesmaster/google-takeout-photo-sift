@@ -5,7 +5,8 @@ namespace Tiesmaster.GoogleTakeoutPhotoSift.Core.Index;
 /// <param name="Folder">Name of its folder under <c>Takeout\Google Photos</c>.</param>
 /// <param name="SidecarPath">Its .json sidecar, or null.</param>
 /// <param name="TakenUnix">The sidecar's photoTakenTime (unix seconds), or null.</param>
-public sealed record MediaFile(string Path, string Folder, string? SidecarPath, long? TakenUnix)
+/// <param name="Size">Length in bytes when the batch was indexed.</param>
+public sealed record MediaFile(string Path, string Folder, string? SidecarPath, long? TakenUnix, long Size)
 {
     public string Name => System.IO.Path.GetFileName(Path);
 }

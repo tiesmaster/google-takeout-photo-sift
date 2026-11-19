@@ -168,7 +168,9 @@ public sealed partial class BatchIndex
         Dictionary<string, string> livePhotoVideos)
     {
         var dir = Path.Combine(root, folder);
-        var names = Directory.EnumerateFiles(dir).Select(Path.GetFileName).OfType<string>().ToList();
+        // The listing carries each file's length, so the sizes come for free.
+        var sizes = new DirectoryInfo(dir).EnumerateFiles().ToDictionary(f => f.Name, f => f.Length, StringComparer.OrdinalIgnoreCase);
+        var names = sizes.Keys.ToList();
         var images = new List<MediaFile>();
         foreach (var (name, json) in SidecarMatcher.Match(names)
                      .OrderBy(kv => SidecarMatcher.Fold(kv.Key), StringComparer.Ordinal))
@@ -183,7 +185,7 @@ public sealed partial class BatchIndex
                 set.Add(path);
             }
             if (ImageExtensions.Contains(Path.GetExtension(name)))
-                images.Add(new MediaFile(path, folder, jsonPath, jsonPath is null ? null : Sidecar.ReadTakenTime(jsonPath)));
+                images.Add(new MediaFile(path, folder, jsonPath, jsonPath is null ? null : Sidecar.ReadTakenTime(jsonPath), sizes[name]));
         }
         // A video named like an image in this folder is that image's Live Photo video.
         var videoByStem = names.Where(n => LivePhotoVideoExtensions.Contains(Path.GetExtension(n)))

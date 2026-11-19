@@ -144,4 +144,16 @@ public class BatchIndexTests
 
         Assert.Equal("Losse map", Assert.Single(BatchIndex.Load(batch.BatchPath).Albums).Title);
     }
+
+    [Fact]
+    public void Total_size_counts_each_photo_once_and_skips_deleted_ones()
+    {
+        using var batch = new FakeBatch().Year("IMG_1.jpg", taken: 100, content: "1234")
+            .Year("IMG_2.jpg", content: "123456").Album(Trip).File(Trip, "IMG_1.jpg", taken: 100, content: "1234");
+        var photos = BatchIndex.Load(batch.BatchPath).Photos;
+
+        Assert.Equal(10, ByteSize.Total(photos));
+        photos[1].Deleted = true;
+        Assert.Equal(4, ByteSize.Total(photos));
+    }
 }

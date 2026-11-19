@@ -50,6 +50,7 @@
 
         <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14,10,0,0">
             <TextBlock x:Name="Counter" Style="{StaticResource Overlay}" FontSize="22" />
+            <TextBlock x:Name="TotalSize" Style="{StaticResource Overlay}" FontSize="15" Foreground="#BBBBBB" />
             <TextBlock x:Name="Status" Style="{StaticResource Overlay}" FontSize="15" Margin="0,2,0,0" />
         </StackPanel>
 

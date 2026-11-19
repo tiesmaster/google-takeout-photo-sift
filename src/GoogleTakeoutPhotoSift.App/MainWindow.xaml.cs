@@ -238,6 +238,7 @@ public partial class MainWindow : Window
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             Counter.Text = "";
+            TotalSize.Text = "";
             SetStatus($"can't read the batch: {e.Message}", error: true);
             return false;
         }
@@ -642,6 +643,7 @@ public partial class MainWindow : Window
         _shownFrame = null;
         _shown = null;
         Counter.Text = "no photos left";
+        TotalSize.Text = "";
         UpdateAlbumList();
         Caption.Text = _batchPath;
         SubCaption.Visibility = Visibility.Collapsed;
@@ -671,6 +673,7 @@ public partial class MainWindow : Window
                 position++;
         }
         Counter.Text = $"{position} / {photos.Count(p => !p.Deleted)}";
+        TotalSize.Text = ByteSize.Format(ByteSize.Total(photos));
 
         // Album 3/23 · Vakantie IJsland [2016] · 12/120, counting photos that aren't deleted.
         var review = _review;
