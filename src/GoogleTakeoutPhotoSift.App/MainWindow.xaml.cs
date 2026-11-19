@@ -460,18 +460,13 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Next album: its first photo (the loose photos count as the last album). Previous album: the start
-    /// of this one first, then the one before (decision 5). Albums whose photos are all deleted are skipped.
+    /// Next album: its first photo (the loose photos count as the last album). Previous album: the first
+    /// photo of the one before, also from the middle of an album (decision 5). Albums whose photos are all deleted are skipped.
     /// </summary>
     private void JumpToAlbum(int direction, bool repeat, long timestamp)
     {
         var review = _review!;
         var current = review.SectionIndexOf(review.Photos[_current]);
-        if (direction < 0 && SectionBounds(current).First is var start && start >= 0 && start < _current)
-        {
-            GoTo(start, -1, repeat, timestamp);
-            return;
-        }
         for (var s = current + direction; s >= 0 && s < review.Sections.Count; s += direction)
         {
             if (SectionBounds(s).First is var first && first >= 0)

@@ -14,8 +14,11 @@ namespace Tiesmaster.GoogleTakeoutPhotoSift.Cli;
 /// Batch commands:
 ///   dedupe &lt;year | batch path&gt; [--apply] [--batches-root PATH]
 ///   undo-dedupe &lt;year | batch path&gt; [--batches-root PATH]
-/// dedupe finds photos that are in the batch twice (the camera original and an upright re-encoded copy)
-/// and, with --apply, deletes the copies like the viewer does: to batches\deleted, journalled, undoable.
+///   drop-edited &lt;year | batch path&gt; [--apply] [--batches-root PATH]
+///   undo-drop-edited &lt;year | batch path&gt; [--batches-root PATH]
+/// dedupe finds photos that are in the batch twice (the camera original and an upright re-encoded copy);
+/// drop-edited finds the -edited copies that are only a mild enhance of their original. With --apply,
+/// both delete like the viewer does: to batches\deleted, journalled, undoable.
 /// </summary>
 public static class Program
 {
@@ -23,9 +26,13 @@ public static class Program
         Usage:
           GoogleTakeoutPhotoSift.Cli dedupe <year | batch path> [--apply] [--batches-root PATH]
           GoogleTakeoutPhotoSift.Cli undo-dedupe <year | batch path> [--batches-root PATH]
+          GoogleTakeoutPhotoSift.Cli drop-edited <year | batch path> [--apply] [--batches-root PATH]
+          GoogleTakeoutPhotoSift.Cli undo-drop-edited <year | batch path> [--batches-root PATH]
 
-        dedupe without --apply only lists what it would do.
+        dedupe and drop-edited without --apply only list what they would do.
         """;
+
+    private static readonly string[] Commands = ["dedupe", "undo-dedupe", "drop-edited", "undo-drop-edited"];
 
     [STAThread]
     public static int Main(string[] args)
@@ -34,7 +41,7 @@ public static class Program
         var positional = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
         var apply = args.Contains("--apply");
         var rootIndex = Array.IndexOf(args, "--batches-root");
-        if (positional.Count < 2 || positional[0] is not ("dedupe" or "undo-dedupe") || (rootIndex >= 0 && rootIndex + 1 >= args.Length))
+        if (positional.Count < 2 || !Commands.Contains(positional[0]) || (rootIndex >= 0 && rootIndex + 1 >= args.Length))
         {
             Console.Error.WriteLine(Usage);
             return 2;
@@ -49,7 +56,7 @@ public static class Program
             return 2;
         }
 
-        var changes = positional[0] == "undo-dedupe" || apply;
+        var changes = positional[0].StartsWith("undo-", StringComparison.Ordinal) || apply;
         if (changes && Process.GetProcessesByName("GoogleTakeoutPhotoSift").Length > 0)
         {
             Console.Error.WriteLine("Photo Sift is running. Close it first: it would keep showing the old photo list.");
@@ -57,7 +64,13 @@ public static class Program
         }
 
         var index = BatchIndex.Load(batch);
-        return positional[0] == "dedupe" ? Dedupe(index, root, apply) : UndoDedupe(index, root);
+        return positional[0] switch
+        {
+            "dedupe" => Dedupe(index, root, apply),
+            "drop-edited" => DropEdited(index, root, apply),
+            "undo-drop-edited" => UndoRun(index, root, "drop-edited-"),
+            _ => UndoRun(index, root, "dedupe-"),
+        };
     }
 
     private static int Dedupe(BatchIndex index, string root, bool apply)
@@ -124,12 +137,74 @@ public static class Program
         return failed == 0 ? 0 : 1;
     }
 
-    private static int UndoDedupe(BatchIndex index, string root)
+    private static int DropEdited(BatchIndex index, string root, bool apply)
+    {
+        Console.WriteLine($"Batch {index.BatchPath}: {index.Photos.Count} photos");
+        Console.WriteLine("Comparing each -edited copy with its original …");
+        var watch = Stopwatch.StartNew();
+        var report = EditedCopies.Find(index, ReadHeader, (path, orientation) =>
+        {
+            try
+            {
+                return Fingerprint.Sample(path, orientation);
+            }
+            catch (Exception e) when (e is IOException or NotSupportedException or ArgumentException or InvalidOperationException
+                                      or System.Runtime.InteropServices.COMException or ImageMagick.MagickException)
+            {
+                return null;
+            }
+        });
+        Console.WriteLine($"Checked in {watch.Elapsed.TotalSeconds:0.0} s.");
+        Console.WriteLine();
+
+        var copies = report.Pairs.Sum(p => p.Edited.CopyCount);
+        Console.WriteLine($"{report.Pairs.Count} mild edits. Keep the original, remove the -edited copy:");
+        Console.WriteLine();
+        foreach (var pair in report.Pairs)
+        {
+            var albums = pair.Edited.Files.Skip(1).Select(f => f.Folder).ToList();
+            Console.WriteLine($"  keep {pair.Original.Primary.Name,-28} remove {pair.Edited.Primary.Name,-34} differs {pair.Difference,4:0.0}/255"
+                              + (albums.Count > 0 ? $"   + copy in {string.Join(", ", albums)}" : ""));
+        }
+        Console.WriteLine();
+        if (report.Skipped.Count > 0)
+        {
+            Console.WriteLine($"{report.Skipped.Count} -edited copies are left alone:");
+            foreach (var skip in report.Skipped)
+                Console.WriteLine($"  {skip.Edited.Primary.Name}: {skip.Reason}");
+            Console.WriteLine();
+        }
+
+        var deletions = new Deletions(index, root);
+        if (!apply)
+        {
+            Console.WriteLine($"Dry run. With --apply: {report.Pairs.Count} photos and {copies} album copies move to");
+            Console.WriteLine($"  {deletions.DeletedRoot}");
+            Console.WriteLine("and 'undo-drop-edited' puts them all back. A sidecar the original shares stays with it. Nothing was changed.");
+            return 0;
+        }
+
+        var run = $"drop-edited-{DateTime.Now:yyyyMMdd-HHmmss}";
+        var failed = 0;
+        foreach (var pair in report.Pairs)
+        {
+            var (_, work) = deletions.Delete(pair.Edited, run);
+            if (work() is { } error)
+            {
+                failed++;
+                Console.WriteLine($"  {pair.Edited.Primary.Name}: {error}");
+            }
+        }
+        Console.WriteLine($"Removed {report.Pairs.Count - failed} -edited copies ({run}); {failed} failed. 'undo-drop-edited' puts them back.");
+        return failed == 0 ? 0 : 1;
+    }
+
+    private static int UndoRun(BatchIndex index, string root, string prefix)
     {
         var deletions = new Deletions(index, root);
-        if (deletions.LastRun("dedupe-") is not { } run)
+        if (deletions.LastRun(prefix) is not { } run)
         {
-            Console.WriteLine("No dedupe to undo for this batch.");
+            Console.WriteLine($"No {prefix.TrimEnd('-')} to undo for this batch.");
             return 0;
         }
         var failed = 0;

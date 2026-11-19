@@ -580,7 +580,7 @@ for "go to", and arrow/IrfanView keys alongside.
 | | `:` `Ctrl+G` | go to photo number (box: type `1203` + Enter) | |
 | | mouse wheel | next / previous photo | |
 | **Albums** | `Shift+→` `J` `]` | first photo of the next album (loose photos count as the last album) | yes |
-| | `Shift+←` `K` `[` | first photo of the previous album; mid-album: start of this album first (decision 5) | yes |
+| | `Shift+←` `K` `[` | first photo of the previous album, also mid-album (decision 5) | yes |
 | | `g a` | album picker: type to filter, `↑`/`↓`, Enter to jump, Esc to close | |
 | | `g l` | first loose photo | |
 | | `g e` | last photo of the current album ("end") | |
@@ -728,8 +728,8 @@ Answered on 2026-11-18. The numbers are referred to elsewhere in the plan as "de
    as year copies (same name, and the same JSON date or identical bytes).
 4. **Album numbers after deletes**: stable for the session. An album whose photos were all deleted is
    skipped by jumps but still counted.
-5. **`K` / `[` in the middle of an album**: first to the start of the current album; at the start, to
-   the previous album.
+5. **`K` / `[` in the middle of an album**: straight to the first photo of the previous album. (At
+   first it went to the start of the current album first; that turned out to be in the way.)
 6. **Undo scope**: deletes only. A rotation is undone by rotating back.
 7. **Copies with the same date but different bytes**: rotate each file (as now) and flag "copies differ"
    in the header and the info panel.

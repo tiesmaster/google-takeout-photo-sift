@@ -65,7 +65,7 @@ public static class Bindings
         new(Command.NextAlbum, ["Shift+Right", "J", "]"], Group.Albums,
             "First photo of the next album (the loose photos count as the last album)", Repeat.Allow),
         new(Command.PreviousAlbum, ["Shift+Left", "K", "["], Group.Albums,
-            "Start of this album; at its start, the previous album", Repeat.Allow),
+            "First photo of the previous album", Repeat.Allow),
         new(Command.AlbumEnd, ["g e"], Group.Albums, "Last photo of this album", Repeat.Ignore, "album end"),
         new(Command.LoosePhotos, ["g l"], Group.Albums, "First loose photo (in no album)", Repeat.Ignore, "loose"),
         new(Command.AlbumPicker, ["g a"], Group.Albums, "Album picker: type to filter, Up/Down, Enter to jump", Repeat.Ignore, "albums"),

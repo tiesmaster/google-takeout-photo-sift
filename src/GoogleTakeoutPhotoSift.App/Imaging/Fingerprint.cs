@@ -12,24 +12,11 @@ namespace Tiesmaster.GoogleTakeoutPhotoSift.App.Imaging;
 /// </summary>
 public static class Fingerprint
 {
-    public static ulong Compute(string path, int orientation)
-    {
-        var bytes = File.ReadAllBytes(path);
-        var extension = Path.GetExtension(path);
-        var heif = extension.Equals(".heic", StringComparison.OrdinalIgnoreCase) || extension.Equals(".heif", StringComparison.OrdinalIgnoreCase);
-        return Compute(heif ? MagickDecoder.Decode(bytes, 64) : WicDecoder.Decode(bytes, 64), orientation);
-    }
+    public static ulong Compute(string path, int orientation) => Compute(DecodeSmall(path), orientation);
 
     public static ulong Compute(BitmapSource stored, int orientation)
     {
-        var angle = orientation switch
-        {
-            3 => 180,
-            6 => 90,
-            8 => 270,
-            _ => 0,
-        };
-        BitmapSource shown = angle == 0 ? stored : new TransformedBitmap(stored, new RotateTransform(angle));
+        var shown = Shown(stored, orientation);
         var small = new TransformedBitmap(shown, new ScaleTransform(9.0 / shown.PixelWidth, 8.0 / shown.PixelHeight));
         var grey = new FormatConvertedBitmap(small, PixelFormats.Gray8, null, 0);
         var (width, height) = (grey.PixelWidth, grey.PixelHeight);
@@ -49,5 +36,43 @@ public static class Fingerprint
             }
         }
         return hash;
+    }
+
+    /// <summary>
+    /// The picture as shown, squeezed to <paramref name="size"/>×<paramref name="size"/> colour pixels
+    /// (BGR bytes), to compare two versions of a photo: see <c>EditedCopies</c>.
+    /// </summary>
+    public static byte[] Sample(string path, int orientation, int size = 32) => Sample(DecodeSmall(path), orientation, size);
+
+    public static byte[] Sample(BitmapSource stored, int orientation, int size = 32)
+    {
+        var shown = Shown(stored, orientation);
+        var small = new TransformedBitmap(shown, new ScaleTransform((double)size / shown.PixelWidth, (double)size / shown.PixelHeight));
+        var colour = new FormatConvertedBitmap(small, PixelFormats.Bgr24, null, 0);
+        var pixels = new byte[size * size * 3];
+        // Rounding can leave a pixel row or column short; those bytes stay 0 in both samples.
+        var (width, height) = (Math.Min(colour.PixelWidth, size), Math.Min(colour.PixelHeight, size));
+        colour.CopyPixels(new System.Windows.Int32Rect(0, 0, width, height), pixels, size * 3, 0);
+        return pixels;
+    }
+
+    private static BitmapSource DecodeSmall(string path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        var extension = Path.GetExtension(path);
+        var heif = extension.Equals(".heic", StringComparison.OrdinalIgnoreCase) || extension.Equals(".heif", StringComparison.OrdinalIgnoreCase);
+        return heif ? MagickDecoder.Decode(bytes, 64) : WicDecoder.Decode(bytes, 64);
+    }
+
+    private static BitmapSource Shown(BitmapSource stored, int orientation)
+    {
+        var angle = orientation switch
+        {
+            3 => 180,
+            6 => 90,
+            8 => 270,
+            _ => 0,
+        };
+        return angle == 0 ? stored : new TransformedBitmap(stored, new RotateTransform(angle));
     }
 }

@@ -61,7 +61,7 @@ after a restart.
 |  | `End` `G` | Last photo of the batch |  |
 |  | `:` `Ctrl+G` | Go to photo number |  |
 | **Albums** | `Shift+→` `J` `]` | First photo of the next album (the loose photos count as the last album) | yes |
-|  | `Shift+←` `K` `[` | Start of this album; at its start, the previous album | yes |
+|  | `Shift+←` `K` `[` | First photo of the previous album | yes |
 |  | `g e` | Last photo of this album |  |
 |  | `g l` | First loose photo (in no album) |  |
 |  | `g a` | Album picker: type to filter, Up/Down, Enter to jump |  |
@@ -99,6 +99,23 @@ dotnet run --project src/GoogleTakeoutPhotoSift.Cli -- undo-dedupe 2013       # 
 
 Removed twins go to `batches\deleted` like any delete, with their album copies and sidecars, and
 are journalled, so `z` in the viewer can also bring them back one by one.
+
+## Removing -edited copies
+
+Google Photos, Picasa and the iPhone saved their edits next to the original: `IMG_1372.JPG` and
+`IMG_1372-edited.JPG`. Most are an automatic enhance, a few percent brighter and saved again at lower
+quality, so the original is the one to keep. `drop-edited` compares each pair as shown, shrunk to
+32×32: a copy with the same shape and a mean difference under 25/255 goes. A cropped or turned copy, or
+one that clearly looks different (a filter or effect), is listed and left for you to judge. So is an
+edited copy in an album its original isn't in.
+
+```powershell
+dotnet run --project src/GoogleTakeoutPhotoSift.Cli -- drop-edited 2014            # dry run
+dotnet run --project src/GoogleTakeoutPhotoSift.Cli -- drop-edited 2014 --apply    # close Photo Sift first
+dotnet run --project src/GoogleTakeoutPhotoSift.Cli -- undo-drop-edited 2014       # puts the last run back
+```
+
+The original keeps the sidecar it shares with the edited copy.
 
 ## Measuring speed
 
