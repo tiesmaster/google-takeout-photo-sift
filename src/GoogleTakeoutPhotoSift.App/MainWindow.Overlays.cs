@@ -318,6 +318,21 @@ public partial class MainWindow
         Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{photo.Primary.Path}\"") { UseShellExecute = false });
     }
 
+    /// <summary>p: the file in its default app, so a video plays in the usual player.</summary>
+    private void OpenInApp()
+    {
+        if (CurrentPhoto is not { } photo)
+            return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(photo.Primary.Path) { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception e)
+        {
+            SetStatus($"can't open {photo.Primary.Name}: {e.Message}", error: true);
+        }
+    }
+
     private void CopyPath()
     {
         if (CurrentPhoto is not { } photo)

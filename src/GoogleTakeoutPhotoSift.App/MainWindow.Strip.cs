@@ -100,6 +100,7 @@ public partial class MainWindow
                 wanted.Add(review.Photos[b].Primary.Path);
         }
         _thumbnails.Request(wanted.Where(path => !BatchIndex.IsVideo(path)).ToList());
+        _stills.Request(wanted.Where(BatchIndex.IsVideo));
     }
 
     private FrameworkElement MakeCell(int index, Photo photo, bool current, string? newAlbum)
@@ -109,13 +110,17 @@ public partial class MainWindow
         var box = new Grid { Width = width, Height = height, Background = CellBackground, ClipToBounds = true };
         if (photo.IsVideo)
         {
+            // The still (when Windows has one) with a ▶ on top.
+            if (_stills.TryGet(path, out var still) && still is not null)
+                box.Children.Add(new Image { Source = still, Stretch = Stretch.Uniform });
             box.Children.Add(new TextBlock
             {
                 Text = "▶",
-                Foreground = LabelBrush,
+                Foreground = Brushes.White,
                 FontSize = current ? 34 : 26,
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { ShadowDepth = 1, BlurRadius = 4, Opacity = 0.9 },
             });
         }
         else if (_thumbnails!.Get(path) is { } thumbnail)

@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _hintTimer;
     private readonly ResumeState _resume = ResumeState.Load();
     private readonly FileOpQueue _fileOps;
+    private readonly VideoStills _stills;
 
     // The orientation of each photo as shown: read from the file once, then changed by rotations.
     private readonly Dictionary<string, int> _orientations = new(StringComparer.OrdinalIgnoreCase);
@@ -70,6 +71,7 @@ public partial class MainWindow : Window
             _thumbnails?.FromFrame(frame);
             Dispatcher.BeginInvoke(() => OnFrame(frame));
         });
+        _stills = new VideoStills(path => Dispatcher.BeginInvoke(() => OnStill(path)));
         _fileOps = new FileOpQueue(() => new ExifToolProcess(settings.ExifToolPath),
             (op, error) => Dispatcher.BeginInvoke(() => OnFileOpCompleted(op, error)));
         _saveTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => SaveResume(), Dispatcher)
@@ -411,6 +413,9 @@ public partial class MainWindow : Window
             case Command.Reveal:
                 Reveal();
                 break;
+            case Command.OpenInApp:
+                OpenInApp();
+                break;
             case Command.CopyPath:
                 CopyPath();
                 break;
@@ -550,19 +555,31 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>A video isn't decoded or played: a card with its name, length, frame size and file size.</summary>
+    /// <summary>
+    /// A video isn't decoded or played here: its still frame (from Windows) with a ▶ and a bar with its
+    /// length, frame size and file size; until the still is in, or if there's none, a card with the same.
+    /// </summary>
     private async void ShowVideo(Photo video)
     {
         _slowTimer.Stop();
-        Photo.Source = null;
         _shownFrame = null;
         _shown = (video.Primary.Path, FrameKind.Sharp);
         _timing = null;
-        VideoCard.Visibility = Visibility.Visible;
+        var path = video.Primary.Path;
+        if (_stills.TryGet(path, out var still) && still is not null)
+        {
+            ShowStill(still);
+        }
+        else
+        {
+            Photo.Source = null;
+            ShowVideoOverlay(card: true);
+            _stills.Request([path]);
+        }
         VideoName.Text = video.Primary.Name;
         var size = ByteSize.Format(video.Primary.Size);
-        VideoDetails.Text = $"video · {size}";
-        var info = await Task.Run(() => VideoInfo.Read(video.Primary.Path));
+        SetVideoDetails($"video  ·  {size}");
+        var info = await Task.Run(() => VideoInfo.Read(path));
         if (CurrentPhoto != video)
             return;
         var parts = new List<string>();
@@ -571,7 +588,44 @@ public partial class MainWindow : Window
         if (info.Width is int w && info.Height is int h)
             parts.Add($"{w} × {h}");
         parts.Add(size);
-        VideoDetails.Text = string.Join("  ·  ", parts);
+        SetVideoDetails(string.Join("  ·  ", parts));
+    }
+
+    private void SetVideoDetails(string details)
+    {
+        VideoDetails.Text = details;
+        VideoBarText.Text = $"▶  {details}  ·  p plays";
+    }
+
+    /// <summary>The still fitted like a photo; Windows' stills are small, so it's never enlarged.</summary>
+    private void ShowStill(BitmapSource still)
+    {
+        Photo.Opacity = 1;
+        Photo.Source = still;
+        Photo.LayoutTransform = Transform.Identity;
+        var (dpiX, dpiY) = DeviceScale();
+        var box = _pipeline.Box;
+        var scale = FrameGeometry.FitScale(still.PixelWidth, still.PixelHeight, 1, box.W, box.H);
+        Photo.Width = Math.Round(still.PixelWidth * scale) / dpiX;
+        Photo.Height = Math.Round(still.PixelHeight * scale) / dpiY;
+        ShowVideoOverlay(card: false);
+    }
+
+    /// <summary>Card (no still), ▶ and bar (still), or nothing (null: a photo is shown).</summary>
+    private void ShowVideoOverlay(bool? card)
+    {
+        VideoCard.Visibility = card == true ? Visibility.Visible : Visibility.Collapsed;
+        VideoPlay.Visibility = card == false ? Visibility.Visible : Visibility.Collapsed;
+        VideoBar.Visibility = card == false ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnStill(string path)
+    {
+        if (CurrentPhoto is { IsVideo: true } video && string.Equals(video.Primary.Path, path, StringComparison.OrdinalIgnoreCase)
+            && _stills.TryGet(path, out var still) && still is not null)
+            ShowStill(still);
+        if (_stripPaths.Contains(path))
+            UpdateStrip();
     }
 
     private void OnSlowFrame()
@@ -614,8 +668,9 @@ public partial class MainWindow : Window
             for (var i = 1; i <= _settings.PrefetchBehind && (behind = Step(behind!.Value, -_direction)) is not null; i++)
                 wanted.Add(new FrameRequest(batch.Photos[behind.Value].Primary.Path, FrameKind.Sharp, 10 + i));
         }
-        // Videos aren't decoded.
+        // Videos aren't decoded; their stills come from Windows.
         _pipeline.Schedule(wanted.Where(r => !BatchIndex.IsVideo(r.Path)).ToList());
+        _stills.Request(wanted.Select(r => r.Path).Where(BatchIndex.IsVideo));
     }
 
     private void OnFrame(DecodedFrame frame)
@@ -653,7 +708,7 @@ public partial class MainWindow : Window
         }
         _orientations.TryAdd(frame.Path, frame.Orientation);
         _slowTimer.Stop();
-        VideoCard.Visibility = Visibility.Collapsed;
+        ShowVideoOverlay(null);
         Photo.Opacity = 1;
         if (Status.Text == "decoding…")
             SetStatus("");
@@ -683,7 +738,7 @@ public partial class MainWindow : Window
     private void ShowEmpty()
     {
         Photo.Source = null;
-        VideoCard.Visibility = Visibility.Collapsed;
+        ShowVideoOverlay(null);
         _shownFrame = null;
         _shown = null;
         Counter.Text = "no photos left";
@@ -935,6 +990,7 @@ public partial class MainWindow : Window
         _fileOps.Dispose();
         _thumbnails?.Dispose();
         _pipeline.Dispose();
+        _stills.Dispose();
         _timingLog.Dispose();
         base.OnClosed(e);
     }

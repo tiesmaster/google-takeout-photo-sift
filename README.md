@@ -47,8 +47,10 @@ with album boundaries marked. `--order python` gives the old viewer's order inst
 
 ### Videos
 
-Videos are reviewed between the photos, by date, but not played: a card shows the name, length,
-frame size and file size, and the strip shows ▶. `d` and `z` work as for photos (album copies and
+Videos are reviewed between the photos, by date, but not played here: you see the still frame
+Windows makes for Explorer, with a ▶ and a bar with the length, frame size and file size (a card with
+the same when Windows has no still). The strip shows the stills too. `p` plays the video in your
+default player. `d` and `z` work as for photos (album copies and
 sidecar included); rotating doesn't. A Live Photo's video (`IMG_1.MOV` next to `IMG_1.JPG`) isn't
 reviewed on its own: it goes along when its photo is deleted.
 
@@ -97,6 +99,7 @@ after a restart.
 |  | `F12` | Timing overlay |  |
 |  | `i` | Info panel: dates, camera, copies, albums, sidecar |  |
 | **Other** | `o` | Show the file in Explorer |  |
+|  | `p` | Open in its default app: plays a video |  |
 |  | `y` | Copy the file path |  |
 |  | `?` | This help |  |
 |  | `Esc` | Close overlay, leave full screen, else quit (after pending writes) |  |
