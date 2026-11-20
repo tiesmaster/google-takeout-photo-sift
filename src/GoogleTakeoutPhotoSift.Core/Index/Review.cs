@@ -4,11 +4,18 @@ using Tiesmaster.GoogleTakeoutPhotoSift.Core.Batches;
 
 namespace Tiesmaster.GoogleTakeoutPhotoSift.Core.Index;
 
-/// <summary>A run of photos reviewed together: one album, or the loose photos (no album).</summary>
-public sealed class Section(Album? album, IReadOnlyList<Photo> photos, int start)
+/// <summary>
+/// A run of photos reviewed together: one album, the loose photos (no album), or the loose photos
+/// received through WhatsApp.
+/// </summary>
+public sealed class Section(Album? album, IReadOnlyList<Photo> photos, int start, bool isWhatsApp = false)
 {
-    /// <summary>Null for the loose photos.</summary>
+    /// <summary>Null for the loose photos and the WhatsApp photos.</summary>
     public Album? Album { get; } = album;
+
+    public bool IsWhatsApp { get; } = isWhatsApp;
+
+    public bool IsLoose => Album is null && !IsWhatsApp;
 
     public IReadOnlyList<Photo> Photos { get; } = photos;
 
@@ -17,7 +24,7 @@ public sealed class Section(Album? album, IReadOnlyList<Photo> photos, int start
 
     public int End => Start + Photos.Count;
 
-    public string Title => Album?.Title ?? "Loose photos";
+    public string Title => IsWhatsApp ? "WhatsApp" : Album?.Title ?? "Loose photos";
 }
 
 /// <summary>An album as the album picker lists it.</summary>
@@ -27,7 +34,8 @@ public sealed record AlbumEntry(Album Album, Section? Section, int MemberCount, 
 /// The order photos are reviewed in. Album mode: albums first, ordered by the date of their first
 /// photo (decision 1); each photo appears once, in the first album it belongs to (decision 2), with
 /// the others as "also in"; then the loose photos (decision 11). Within a section by date taken, then
-/// file name. Python mode keeps rotate_viewer.py's order in one section, for comparing numbers.
+/// file name. Loose photos received through WhatsApp come last, in a section of their own (unless
+/// <c>groupWhatsApp</c> is off); those in an album stay there. Python mode keeps rotate_viewer.py's order in one section, for comparing numbers.
 /// </summary>
 public sealed class Review
 {
@@ -49,7 +57,7 @@ public sealed class Review
     /// <summary>All photos, section after section.</summary>
     public IReadOnlyList<Photo> Photos { get; }
 
-    /// <summary>The album sections in order, then the loose photos (if any).</summary>
+    /// <summary>The album sections in order, then the loose photos and the WhatsApp photos (if any).</summary>
     public IReadOnlyList<Section> Sections { get; }
 
     /// <summary>Every album with media in this batch, in review order; also those whose photos all show elsewhere.</summary>
@@ -59,6 +67,12 @@ public sealed class Review
 
     /// <summary>The number of album sections (the loose photos aren't an album).</summary>
     public int AlbumCount => Sections.Count(s => s.Album is not null);
+
+    /// <summary>Index of the loose photos' section, or -1.</summary>
+    public int LooseSection => Sections.Select((s, i) => (s, i)).FirstOrDefault(x => x.s.IsLoose && !IsPython, (null!, -1)).Item2;
+
+    /// <summary>Index of the WhatsApp section, or -1 (also when they're kept between the other loose photos).</summary>
+    public int WhatsAppSection => Sections.Select((s, i) => (s, i)).FirstOrDefault(x => x.s.IsWhatsApp, (null!, -1)).Item2;
 
     public int SectionIndexOf(Photo photo) => _byPhoto[photo].Section;
 
@@ -79,7 +93,7 @@ public sealed class Review
     /// The album-first order. <paramref name="exifDate"/> supplies a date for photos without a sidecar
     /// date (EXIF DateTimeOriginal by default); it's only called for those.
     /// </summary>
-    public static Review AlbumFirst(BatchIndex index, Func<string, long?>? exifDate = null)
+    public static Review AlbumFirst(BatchIndex index, Func<string, long?>? exifDate = null, bool groupWhatsApp = true)
     {
         exifDate ??= ReadExifDate;
         var albumsByFolder = index.Albums.ToDictionary(a => a.Folder, StringComparer.OrdinalIgnoreCase);
@@ -111,13 +125,13 @@ public sealed class Review
         var sections = new List<Section>();
         var byPhoto = new Dictionary<Photo, (int, IReadOnlyList<Album>)>();
         var entries = new List<AlbumEntry>();
-        void Add(Album? album, List<Photo> own)
+        void Add(Album? album, List<Photo> own, bool isWhatsApp = false)
         {
             var ordered = own.OrderBy(p => taken[p] is null).ThenBy(p => taken[p])
                 .ThenBy(p => SidecarMatcher.Fold(p.Primary.Name), StringComparer.Ordinal)
                 .ThenBy(p => p.Primary.Folder, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            var section = new Section(album, ordered, photos.Count);
+            var section = new Section(album, ordered, photos.Count, isWhatsApp);
             foreach (var photo in ordered)
                 byPhoto[photo] = (sections.Count, sorted[photo]);
             sections.Add(section);
@@ -129,7 +143,13 @@ public sealed class Review
                 Add(album, own);
         }
         if (home.TryGetValue(Loose, out var loose))
-            Add(null, loose);
+        {
+            var whatsApp = groupWhatsApp ? loose.Where(p => p.IsWhatsApp).ToList() : [];
+            if (whatsApp.Count < loose.Count)
+                Add(null, loose.Except(whatsApp).ToList());
+            if (whatsApp.Count > 0)
+                Add(null, whatsApp, isWhatsApp: true);
+        }
 
         foreach (var (album, first) in albumOrder)
         {

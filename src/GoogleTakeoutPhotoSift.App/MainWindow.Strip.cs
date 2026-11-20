@@ -9,7 +9,8 @@ using Tiesmaster.GoogleTakeoutPhotoSift.Core.Index;
 
 namespace Tiesmaster.GoogleTakeoutPhotoSift.App;
 
-// The thumbnail strip: the photos before and after the current one, with album boundaries marked.
+// The thumbnail strip: the photos before and after the current one, with album boundaries marked and
+// WhatsApp photos framed in green.
 public partial class MainWindow
 {
     private static readonly int[] StripSizes = [5, 8, 3];
@@ -132,7 +133,7 @@ public partial class MainWindow
         {
             Child = box,
             BorderThickness = new Thickness(3),
-            BorderBrush = current ? CurrentBorder : Brushes.Transparent,
+            BorderBrush = photo.IsWhatsApp ? WhatsAppBrush : current ? CurrentBorder : Brushes.Transparent,
             Margin = new Thickness(2, 0, 2, 0),
             Cursor = Cursors.Hand,
             ToolTip = $"{photo.Primary.Folder} / {photo.Primary.Name}",

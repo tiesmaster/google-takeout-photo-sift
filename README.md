@@ -45,6 +45,16 @@ lists the others ("also in"). Within an album, photos are ordered by date taken.
 `Album 3/23 · Vakantie IJsland [2016] · 12/120`, and the strip below the photo shows its neighbours
 with album boundaries marked. `--order python` gives the old viewer's order instead.
 
+### WhatsApp photos
+
+Photos received through WhatsApp come last, in a "WhatsApp" section after the loose photos, so the
+batch's own photos come first. WhatsApp strips the camera data and shrinks the picture, and on an
+iPhone a saved one is just `IMG_1234.JPG`, so they're recognised by their traits: no camera make, no
+EXIF date, and a long side of at most 1600 px. A WhatsApp photo that is in an album stays in that
+album. Every WhatsApp photo gets a green frame, on screen and in the strip, and a "WhatsApp" label
+next to the counter. `g w` jumps to the section, and `W` puts them back between the loose photos by
+date (still marked).
+
 ## Keys
 
 `?` shows all of them in the app. `g` starts a two-key sequence: a hint shows what can follow.
@@ -60,10 +70,12 @@ after a restart.
 |  | `Home` `g g` | First photo of the batch |  |
 |  | `End` `G` | Last photo of the batch |  |
 |  | `:` `Ctrl+G` | Go to photo number |  |
-| **Albums** | `Shift+→` `J` `]` | First photo of the next album (the loose photos count as the last album) | yes |
+| **Albums** | `Shift+→` `J` `]` | First photo of the next album (the loose and WhatsApp photos count as the last albums) | yes |
 |  | `Shift+←` `K` `[` | First photo of the previous album | yes |
 |  | `g e` | Last photo of this album |  |
 |  | `g l` | First loose photo (in no album) |  |
+|  | `g w` | First WhatsApp photo (the loose ones, grouped last) |  |
+|  | `W` | WhatsApp photos grouped last, or back between the loose photos by date |  |
 |  | `g a` | Album picker: type to filter, Up/Down, Enter to jump |  |
 | **Edit** | `r` | Rotate right 90° |  |
 |  | `l` | Rotate left 90° |  |

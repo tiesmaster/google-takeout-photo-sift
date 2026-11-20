@@ -48,6 +48,8 @@ public partial class MainWindow : Window
     private int? _shownSection;
     private int _current;
     private int _direction = 1;
+    private bool _groupWhatsApp = true;
+    private long _whatsAppMs;
     private bool _holding;
     private (string Path, FrameKind Kind)? _shown;
     private NavigationTiming? _timing;
@@ -109,6 +111,7 @@ public partial class MainWindow : Window
         var copies = _review!.Photos.Sum(p => p.CopyCount);
         var undo = _deletions!.UndoStack.Count;
         SetStatus($"{_review!.Photos.Count} photos, {copies} album copies linked, indexed in {watch.ElapsedMilliseconds} ms"
+                  + $" ({_review.Photos.Count(p => p.IsWhatsApp)} WhatsApp, checked in {_whatsAppMs} ms)"
                   + (undo > 0 ? $" · {undo} earlier deletes can be undone (z)" : ""));
         if (_review!.Photos.Count == 0)
         {
@@ -224,7 +227,10 @@ public partial class MainWindow : Window
             var (index, review) = await Task.Run(() =>
             {
                 var loaded = BatchIndex.Load(_batchPath, python ? IndexOptions.Python : new IndexOptions());
-                return (loaded, python ? Review.Python(loaded) : Review.AlbumFirst(loaded));
+                var watch = Stopwatch.StartNew();
+                WhatsAppPhotos.Mark(loaded);
+                _whatsAppMs = watch.ElapsedMilliseconds;
+                return (loaded, python ? Review.Python(loaded) : Review.AlbumFirst(loaded, groupWhatsApp: _groupWhatsApp));
             });
             _index = index;
             _review = review;
@@ -357,11 +363,19 @@ public partial class MainWindow : Window
                     GoTo(end, -1, repeat, timestamp);
                 break;
             case Command.LoosePhotos:
-                var looseSection = _review.Sections.Count - 1;
-                if (_review.Sections[looseSection].Album is null && !_review.IsPython && SectionBounds(looseSection).First >= 0)
+                if (_review.LooseSection is var looseSection && looseSection >= 0 && SectionBounds(looseSection).First >= 0)
                     GoTo(SectionBounds(looseSection).First, 1, repeat, timestamp);
                 else
                     SetStatus("no loose photos (every photo is in an album)");
+                break;
+            case Command.WhatsAppPhotos:
+                if (_review.WhatsAppSection is var whatsAppSection && whatsAppSection >= 0 && SectionBounds(whatsAppSection).First >= 0)
+                    GoTo(SectionBounds(whatsAppSection).First, 1, repeat, timestamp);
+                else
+                    SetStatus(_groupWhatsApp ? "no loose WhatsApp photos" : "WhatsApp photos are between the loose photos (W groups them)");
+                break;
+            case Command.GroupWhatsApp:
+                ToggleWhatsAppGrouping();
                 break;
             case Command.RotateRight:
                 Rotate(90);
@@ -639,6 +653,7 @@ public partial class MainWindow : Window
         _shown = null;
         Counter.Text = "no photos left";
         TotalSize.Text = "";
+        ShowWhatsApp(false);
         UpdateAlbumList();
         Caption.Text = _batchPath;
         SubCaption.Visibility = Visibility.Collapsed;
@@ -669,6 +684,7 @@ public partial class MainWindow : Window
         }
         Counter.Text = $"{position} / {photos.Count(p => !p.Deleted)}";
         TotalSize.Text = ByteSize.Format(ByteSize.Total(photos));
+        ShowWhatsApp(photo.IsWhatsApp);
 
         // Album 3/23 · Vakantie IJsland [2016] · 12/120, counting photos that aren't deleted.
         var review = _review;
@@ -682,7 +698,7 @@ public partial class MainWindow : Window
         }
         var sectionCount = section.Photos.Count(p => !p.Deleted);
         AlbumLine.Text = review.IsPython ? ""
-            : section.Album is null ? $"Loose photos · {inSection}/{sectionCount}"
+            : section.Album is null ? $"{section.Title} · {inSection}/{sectionCount}"
             : $"Album {sectionIndex + 1}/{review.AlbumCount} · {section.Title} · {inSection}/{sectionCount}";
         AlbumLine.Visibility = review.IsPython ? Visibility.Collapsed : Visibility.Visible;
         if (_shownSection is int previous && previous != sectionIndex && !review.IsPython)
@@ -702,6 +718,32 @@ public partial class MainWindow : Window
             notes.Add($"Live Photo: {Path.GetFileName(video)}");
         SubCaption.Text = string.Join("   ·   ", notes);
         SubCaption.Visibility = notes.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>The WhatsApp pill next to the counter, and the frame around the photo in the same green.</summary>
+    private void ShowWhatsApp(bool show)
+    {
+        WhatsAppPill.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        PhotoFrame.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// <c>W</c>: the loose WhatsApp photos in a section of their own at the end, or back between the
+    /// loose photos by date. The current photo stays on screen.
+    /// </summary>
+    private void ToggleWhatsAppGrouping()
+    {
+        if (_review is not { IsPython: false } review || CurrentPhoto is not { } photo)
+            return;
+        _groupWhatsApp = !_groupWhatsApp;
+        _review = Review.AlbumFirst(review.Index, groupWhatsApp: _groupWhatsApp);
+        _albumListState = null;
+        _shownSection = null;
+        _shown = null;
+        GoTo(IndexOf(photo), 1, repeat: false, Stopwatch.GetTimestamp());
+        SetStatus(_groupWhatsApp
+            ? $"WhatsApp photos grouped last ({review.Photos.Count(p => p.IsWhatsApp && !p.Deleted)} in all; those in an album stay there)"
+            : "WhatsApp photos back between the loose photos, by date");
     }
 
     /// <summary>The album title in the middle of the screen for a second, fading out.</summary>

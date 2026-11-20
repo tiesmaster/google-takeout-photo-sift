@@ -30,6 +30,9 @@ public sealed class Photo(IReadOnlyList<MediaFile> files)
     /// </summary>
     public bool Deleted { get; set; }
 
+    /// <summary>Received through WhatsApp, by its file traits: see <see cref="WhatsAppPhotos"/>.</summary>
+    public bool IsWhatsApp { get; set; }
+
     public override string ToString() => $"{Primary.Folder}/{Primary.Name} (+{CopyCount})";
 }
 

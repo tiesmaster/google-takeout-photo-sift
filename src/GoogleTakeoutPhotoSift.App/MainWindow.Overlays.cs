@@ -180,12 +180,16 @@ public partial class MainWindow
                     target, Dim: true, Current: false));
             }
         }
-        if (review.Sections[^1] is { Album: null } loose && !review.IsPython
-            && (filter.Length == 0 || compare.IndexOf("loose photos", filter, CompareOptions.IgnoreCase) >= 0))
+        // The loose photos and the WhatsApp photos, after the albums.
+        foreach (var index in new[] { review.LooseSection, review.WhatsAppSection })
         {
-            var looseIndex = review.Sections.Count - 1;
-            items.Add(new PickerItem($"      Loose photos   ·  {loose.Photos.Count(p => !p.Deleted)} photos",
-                SectionBounds(looseIndex).First, Dim: false, Current: current == looseIndex));
+            if (index < 0)
+                continue;
+            var section = review.Sections[index];
+            if (filter.Length > 0 && compare.IndexOf(section.Title, filter, CompareOptions.IgnoreCase) < 0)
+                continue;
+            items.Add(new PickerItem($"      {section.Title}   ·  {section.Photos.Count(p => !p.Deleted)} photos",
+                SectionBounds(index).First, Dim: false, Current: current == index));
         }
 
         PickerList.Items.Clear();
@@ -266,6 +270,7 @@ public partial class MainWindow
             : null);
         Line("EXIF date", info.DateTimeOriginal?.ToString("ddd d MMM yyyy HH:mm:ss", CultureInfo.CurrentCulture));
         Line("Camera", info.Camera);
+        Line("Source", photo.IsWhatsApp ? "WhatsApp (no camera, no EXIF date, at most 1600 px)" : null);
         Line("Size", (info.Width is int w && info.Height is int h ? $"{w} × {h}  ·  " : "") + $"{files[0].Size / 1e6:0.0} MB");
         var orientation = _orientations.GetValueOrDefault(photo.Primary.Path, 1);
         Line("Orientation", $"{orientation} ({PhotoInfo.OrientationName(orientation)})");

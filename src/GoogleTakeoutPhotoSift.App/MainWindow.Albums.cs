@@ -15,6 +15,7 @@ public partial class MainWindow
     private static readonly Brush CurrentAlbumBackground = Frozen(new SolidColorBrush(Color.FromRgb(0x1C, 0x2B, 0x3D)));
     private static readonly Brush AlbumBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xC8, 0xC8, 0xC8)));
     private static readonly Brush CountBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)));
+    private static readonly Brush WhatsAppBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x25, 0xD3, 0x66)));
     private static readonly Brush EmptyAlbumBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)));
 
     // What the list shows now, so it's only rebuilt when the album or the counts change.
@@ -53,7 +54,7 @@ public partial class MainWindow
         {
             var section = review.Sections[i];
             var count = section.Photos.Count(p => !p.Deleted);
-            var row = MakeAlbumRow(i, section.Title, count, i == current, isLoose: section.Album is null);
+            var row = MakeAlbumRow(i, section.Title, count, i == current, isLoose: section.Album is null, section.IsWhatsApp);
             AlbumListItems.Children.Add(row);
             if (i == current)
                 currentRow = row;
@@ -63,12 +64,12 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(() => currentRow.BringIntoView(), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
-    private FrameworkElement MakeAlbumRow(int sectionIndex, string title, int count, bool current, bool isLoose)
+    private FrameworkElement MakeAlbumRow(int sectionIndex, string title, int count, bool current, bool isLoose, bool isWhatsApp)
     {
         var name = new TextBlock
         {
             Text = title,
-            Foreground = count == 0 ? EmptyAlbumBrush : current ? Brushes.White : AlbumBrush,
+            Foreground = count == 0 ? EmptyAlbumBrush : isWhatsApp ? WhatsAppBrush : current ? Brushes.White : AlbumBrush,
             FontWeight = current ? FontWeights.SemiBold : FontWeights.Normal,
             FontStyle = isLoose ? FontStyles.Italic : FontStyles.Normal,
             TextTrimming = TextTrimming.CharacterEllipsis,

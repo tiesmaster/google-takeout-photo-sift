@@ -116,4 +116,37 @@ public class ReviewTests
         Assert.Single(review.Sections);
         Assert.Equal([Trip], review.AlbumsOf(review.Photos[0]).Select(a => a.Title));
     }
+
+    [Theory]
+    [InlineData(true, new[] { Trip, "Loose photos", "WhatsApp" }, new[] { "wa-in-trip.jpg", "camera.jpg", "wa-early.jpg", "wa-late.jpg" })]
+    [InlineData(false, new[] { Trip, "Loose photos" }, new[] { "wa-in-trip.jpg", "wa-early.jpg", "camera.jpg", "wa-late.jpg" })]
+    public void Loose_WhatsApp_photos_come_last_and_album_ones_stay_in_their_album(bool group, string[] sections, string[] order)
+    {
+        using var batch = new FakeBatch()
+            .Year("wa-early.jpg", taken: 1).Year("camera.jpg", taken: 2).Year("wa-late.jpg", taken: 3).Year("wa-in-trip.jpg", taken: 4)
+            .Album(Trip).File(Trip, "wa-in-trip.jpg", taken: 4);
+        var index = BatchIndex.Load(batch.BatchPath);
+        foreach (var photo in index.Photos)
+            photo.IsWhatsApp = photo.Primary.Name.StartsWith("wa-", StringComparison.Ordinal);
+
+        var review = Review.AlbumFirst(index, _ => null, groupWhatsApp: group);
+
+        Assert.Equal(sections, review.Sections.Select(s => s.Title));
+        Assert.Equal(order, review.Photos.Select(p => p.Primary.Name));
+        Assert.Equal(1, review.LooseSection);
+        Assert.Equal(group ? 2 : -1, review.WhatsAppSection);
+    }
+
+    [Fact]
+    public void Only_WhatsApp_photos_loose_makes_no_empty_loose_section()
+    {
+        using var batch = new FakeBatch().Year("wa.jpg", taken: 1);
+        var index = BatchIndex.Load(batch.BatchPath);
+        index.Photos[0].IsWhatsApp = true;
+
+        var review = Review.AlbumFirst(index, _ => null);
+
+        Assert.Equal(["WhatsApp"], review.Sections.Select(s => s.Title));
+        Assert.Equal(-1, review.LooseSection);
+    }
 }
