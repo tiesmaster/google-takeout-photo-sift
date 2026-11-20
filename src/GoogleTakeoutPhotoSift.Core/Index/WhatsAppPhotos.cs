@@ -27,7 +27,8 @@ public static class WhatsAppPhotos
     public static void Mark(BatchIndex index, Func<string, ImageTraits?>? read = null)
     {
         read ??= ReadTraits;
-        Parallel.ForEach(index.Photos, photo => photo.IsWhatsApp = read(photo.Primary.Path) is { } traits && Matches(traits));
+        Parallel.ForEach(index.Photos, photo =>
+            photo.IsWhatsApp = !photo.IsVideo && read(photo.Primary.Path) is { } traits && Matches(traits));
     }
 
     /// <summary>The file's traits from its headers only, or null if it can't be read.</summary>

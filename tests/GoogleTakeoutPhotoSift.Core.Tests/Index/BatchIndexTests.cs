@@ -99,7 +99,7 @@ public class BatchIndexTests
     }
 
     [Fact]
-    public void Videos_are_skipped_but_their_sidecars_count_as_used()
+    public void A_live_photo_video_is_no_item_of_its_own_but_its_sidecar_counts_as_used()
     {
         using var batch = new FakeBatch()
             .Year("IMG_1.jpg", taken: 1, json: "IMG_1.json")
@@ -155,5 +155,20 @@ public class BatchIndexTests
         Assert.Equal(10, ByteSize.Total(photos));
         photos[1].Deleted = true;
         Assert.Equal(4, ByteSize.Total(photos));
+    }
+
+    [Fact]
+    public void A_video_on_its_own_is_reviewed_with_its_album_copy()
+    {
+        using var batch = new FakeBatch()
+            .Year("IMG_1.jpg", taken: 1).Year("IMG_1.MOV", taken: 1).Year("talk.mp4", taken: 2).Year("old.AVI", taken: 3)
+            .Album(Trip).File(Trip, "talk.mp4", taken: 2);
+
+        var index = BatchIndex.Load(batch.BatchPath);
+
+        Assert.Equal(["IMG_1.jpg", "old.AVI", "talk.mp4"], index.Photos.Select(p => p.Primary.Name));
+        Assert.Equal([false, true, true], index.Photos.Select(p => p.IsVideo));
+        Assert.Equal(1, index.Photos.Single(p => p.Primary.Name == "talk.mp4").CopyCount);
+        Assert.Equal(["IMG_1.jpg"], BatchIndex.Load(batch.BatchPath, IndexOptions.Python).Photos.Select(p => p.Primary.Name));
     }
 }

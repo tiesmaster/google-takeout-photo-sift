@@ -24,6 +24,9 @@ public sealed class Photo(IReadOnlyList<MediaFile> files)
 
     public int CopyCount => Files.Count - 1;
 
+    /// <summary>A video on its own (a Live Photo's video goes along with its photo instead).</summary>
+    public bool IsVideo => BatchIndex.IsVideo(Primary.Path);
+
     /// <summary>
     /// Set while the photo is deleted in this session. The photo keeps its place in the list, so an
     /// undo puts it back exactly where it was; navigation skips it.

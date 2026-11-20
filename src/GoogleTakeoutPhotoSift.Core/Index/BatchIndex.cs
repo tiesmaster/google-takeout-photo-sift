@@ -11,8 +11,11 @@ public sealed record IndexOptions
     /// </summary>
     public bool GroupAlbumOnlyCopies { get; init; } = true;
 
+    /// <summary>Videos are reviewed too, except a Live Photo's video (it goes along with its photo).</summary>
+    public bool IncludeVideos { get; init; } = true;
+
     /// <summary>rotate_viewer.py's grouping, for comparing photo numbers with the Python viewer.</summary>
-    public static IndexOptions Python { get; } = new() { GroupAlbumOnlyCopies = false };
+    public static IndexOptions Python { get; } = new() { GroupAlbumOnlyCopies = false, IncludeVideos = false };
 }
 
 /// <summary>
@@ -73,6 +76,13 @@ public sealed partial class BatchIndex
     public static readonly IReadOnlySet<string> LivePhotoVideoExtensions =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mov", ".mp4" };
 
+    public static readonly IReadOnlySet<string> VideoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mov", ".mp4", ".m4v", ".avi", ".3gp", ".mpg", ".mpeg", ".wmv", ".mts", ".m2ts",
+    };
+
+    public static bool IsVideo(string path) => VideoExtensions.Contains(Path.GetExtension(path));
+
     public static bool IsYearFolder(string folderName) => YearFolderRegex().IsMatch(folderName);
 
     public static BatchIndex Load(string batchPath, IndexOptions? options = null)
@@ -85,7 +95,7 @@ public sealed partial class BatchIndex
         var sidecars = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         var users = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         var videos = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var scanned = folders.ToDictionary(f => f, f => ScanFolder(root, f, sidecars, users, videos));
+        var scanned = folders.ToDictionary(f => f, f => ScanFolder(root, f, options.IncludeVideos, sidecars, users, videos));
 
         var yearPhotos = new List<List<MediaFile>>();
         var albumPhotos = new List<List<MediaFile>>();
@@ -161,9 +171,9 @@ public sealed partial class BatchIndex
         }
     }
 
-    // The images of one folder, sorted by name ignoring case. Records every media file's sidecar (videos
-    // too) along the way.
-    private static List<MediaFile> ScanFolder(string root, string folder,
+    // The images of one folder (and videos, unless they're a Live Photo's), sorted by name ignoring
+    // case. Records every media file's sidecar (videos too) along the way.
+    private static List<MediaFile> ScanFolder(string root, string folder, bool includeVideos,
         Dictionary<string, string?> sidecars, Dictionary<string, HashSet<string>> users,
         Dictionary<string, string> livePhotoVideos)
     {
@@ -171,7 +181,9 @@ public sealed partial class BatchIndex
         // The listing carries each file's length, so the sizes come for free.
         var sizes = new DirectoryInfo(dir).EnumerateFiles().ToDictionary(f => f.Name, f => f.Length, StringComparer.OrdinalIgnoreCase);
         var names = sizes.Keys.ToList();
-        var images = new List<MediaFile>();
+        var imageStems = names.Where(n => ImageExtensions.Contains(Path.GetExtension(n)))
+            .Select(Path.GetFileNameWithoutExtension).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var media = new List<MediaFile>();
         foreach (var (name, json) in SidecarMatcher.Match(names)
                      .OrderBy(kv => SidecarMatcher.Fold(kv.Key), StringComparer.Ordinal))
         {
@@ -184,18 +196,20 @@ public sealed partial class BatchIndex
                     users[jsonPath] = set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 set.Add(path);
             }
-            if (ImageExtensions.Contains(Path.GetExtension(name)))
-                images.Add(new MediaFile(path, folder, jsonPath, jsonPath is null ? null : Sidecar.ReadTakenTime(jsonPath), sizes[name]));
+            var extension = Path.GetExtension(name);
+            if (ImageExtensions.Contains(extension)
+                || (includeVideos && VideoExtensions.Contains(extension) && !imageStems.Contains(Path.GetFileNameWithoutExtension(name))))
+                media.Add(new MediaFile(path, folder, jsonPath, jsonPath is null ? null : Sidecar.ReadTakenTime(jsonPath), sizes[name]));
         }
         // A video named like an image in this folder is that image's Live Photo video.
         var videoByStem = names.Where(n => LivePhotoVideoExtensions.Contains(Path.GetExtension(n)))
             .GroupBy(n => Path.GetFileNameWithoutExtension(n), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-        foreach (var image in images)
+        foreach (var image in media.Where(m => ImageExtensions.Contains(Path.GetExtension(m.Name))))
         {
             if (videoByStem.TryGetValue(Path.GetFileNameWithoutExtension(image.Name), out var video))
                 livePhotoVideos[image.Path] = Path.Combine(dir, video);
         }
-        return images;
+        return media;
     }
 }

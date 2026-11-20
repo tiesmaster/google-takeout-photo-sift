@@ -31,7 +31,7 @@ public static class Twins
         var pairs = new List<TwinPair>();
         var skipped = new List<TwinSkip>();
         var groups = index.Photos
-            .Where(p => p.Primary.TakenUnix is not null)
+            .Where(p => p.Primary.TakenUnix is not null && !p.IsVideo)
             .GroupBy(p => p.Primary.TakenUnix!.Value)
             .Where(g => g.Count() > 1)
             .OrderBy(g => g.Key);

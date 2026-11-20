@@ -52,6 +52,19 @@
                     IsHitTestVisible="False" />
         </Grid>
 
+        <!-- A video: not played here, a card with its length, frame size and file size instead. -->
+        <Border x:Name="VideoCard" HorizontalAlignment="Center" VerticalAlignment="Center" Width="560"
+                Background="#FF1A1A1A" BorderBrush="#FF3A3A3A" BorderThickness="1" CornerRadius="10" Padding="28,24"
+                Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock Text="▶" Foreground="#FFDDDDDD" FontSize="64" HorizontalAlignment="Center" />
+                <TextBlock x:Name="VideoName" Foreground="White" FontFamily="Segoe UI" FontSize="20" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,8,0,0" />
+                <TextBlock x:Name="VideoDetails" Foreground="#FFBBBBBB" FontFamily="Segoe UI" FontSize="17"
+                           HorizontalAlignment="Center" Margin="0,6,0,0" />
+            </StackPanel>
+        </Border>
+
         <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14,10,0,0">
             <StackPanel Orientation="Horizontal">
                 <TextBlock x:Name="Counter" Style="{StaticResource Overlay}" FontSize="22" />

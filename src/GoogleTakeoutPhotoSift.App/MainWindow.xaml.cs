@@ -110,7 +110,8 @@ public partial class MainWindow : Window
             return;
         var copies = _review!.Photos.Sum(p => p.CopyCount);
         var undo = _deletions!.UndoStack.Count;
-        SetStatus($"{_review!.Photos.Count} photos, {copies} album copies linked, indexed in {watch.ElapsedMilliseconds} ms"
+        var videoCount = _review!.Photos.Count(p => p.IsVideo);
+        SetStatus($"{_review!.Photos.Count - videoCount} photos, {videoCount} videos, {copies} album copies linked, indexed in {watch.ElapsedMilliseconds} ms"
                   + $" ({_review.Photos.Count(p => p.IsWhatsApp)} WhatsApp, checked in {_whatsAppMs} ms)"
                   + (undo > 0 ? $" · {undo} earlier deletes can be undone (z)" : ""));
         if (_review!.Photos.Count == 0)
@@ -527,6 +528,11 @@ public partial class MainWindow : Window
         if (CurrentPhoto is not { } photo)
             return;
         var path = photo.Primary.Path;
+        if (photo.IsVideo)
+        {
+            ShowVideo(photo);
+            return;
+        }
         if (_pipeline.GetSharp(path) is { } sharp)
         {
             Show(sharp, CacheHit.Sharp);
@@ -542,6 +548,30 @@ public partial class MainWindow : Window
             _slowTimer.Stop();
             _slowTimer.Start();
         }
+    }
+
+    /// <summary>A video isn't decoded or played: a card with its name, length, frame size and file size.</summary>
+    private async void ShowVideo(Photo video)
+    {
+        _slowTimer.Stop();
+        Photo.Source = null;
+        _shownFrame = null;
+        _shown = (video.Primary.Path, FrameKind.Sharp);
+        _timing = null;
+        VideoCard.Visibility = Visibility.Visible;
+        VideoName.Text = video.Primary.Name;
+        var size = ByteSize.Format(video.Primary.Size);
+        VideoDetails.Text = $"video · {size}";
+        var info = await Task.Run(() => VideoInfo.Read(video.Primary.Path));
+        if (CurrentPhoto != video)
+            return;
+        var parts = new List<string>();
+        if (info.Duration is { } duration)
+            parts.Add(VideoInfo.FormatDuration(duration));
+        if (info.Width is int w && info.Height is int h)
+            parts.Add($"{w} × {h}");
+        parts.Add(size);
+        VideoDetails.Text = string.Join("  ·  ", parts);
     }
 
     private void OnSlowFrame()
@@ -561,8 +591,10 @@ public partial class MainWindow : Window
             return;
         var wanted = new List<FrameRequest>();
         var path = batch.Photos[_current].Primary.Path;
-        wanted.Add(new FrameRequest(path, FrameKind.Preview, 0));
-        if (!_holding && _pipeline.GetSharp(path) is null)
+        var isVideo = batch.Photos[_current].IsVideo;
+        if (!isVideo)
+            wanted.Add(new FrameRequest(path, FrameKind.Preview, 0));
+        if (!isVideo && !_holding && _pipeline.GetSharp(path) is null)
         {
             // The current photo first, on its own: prefetching now would compete with it for the CPU
             // and memory bandwidth. OnFrame schedules the neighbours once it's in.
@@ -582,7 +614,8 @@ public partial class MainWindow : Window
             for (var i = 1; i <= _settings.PrefetchBehind && (behind = Step(behind!.Value, -_direction)) is not null; i++)
                 wanted.Add(new FrameRequest(batch.Photos[behind.Value].Primary.Path, FrameKind.Sharp, 10 + i));
         }
-        _pipeline.Schedule(wanted);
+        // Videos aren't decoded.
+        _pipeline.Schedule(wanted.Where(r => !BatchIndex.IsVideo(r.Path)).ToList());
     }
 
     private void OnFrame(DecodedFrame frame)
@@ -620,6 +653,7 @@ public partial class MainWindow : Window
         }
         _orientations.TryAdd(frame.Path, frame.Orientation);
         _slowTimer.Stop();
+        VideoCard.Visibility = Visibility.Collapsed;
         Photo.Opacity = 1;
         if (Status.Text == "decoding…")
             SetStatus("");
@@ -649,6 +683,7 @@ public partial class MainWindow : Window
     private void ShowEmpty()
     {
         Photo.Source = null;
+        VideoCard.Visibility = Visibility.Collapsed;
         _shownFrame = null;
         _shown = null;
         Counter.Text = "no photos left";

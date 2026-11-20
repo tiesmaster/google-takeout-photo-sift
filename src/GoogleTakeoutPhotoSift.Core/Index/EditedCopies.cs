@@ -43,11 +43,11 @@ public static class EditedCopies
     public static EditedReport Find(BatchIndex index, Func<string, ImageHeader?> header, Func<string, int, byte[]?> sample)
     {
         var byStem = index.Photos
-            .Where(p => !p.Deleted && OriginalStem(p.Primary.Name) is null)
+            .Where(p => !p.Deleted && !p.IsVideo && OriginalStem(p.Primary.Name) is null)
             .ToLookup(p => (p.Primary.Folder.ToLowerInvariant(), Path.GetFileNameWithoutExtension(p.Primary.Name).ToLowerInvariant()));
         var pairs = new List<EditedPair>();
         var skipped = new List<EditedSkip>();
-        foreach (var edited in index.Photos.Where(p => !p.Deleted))
+        foreach (var edited in index.Photos.Where(p => !p.Deleted && !p.IsVideo))
         {
             if (OriginalStem(edited.Primary.Name) is not { } stem)
                 continue;

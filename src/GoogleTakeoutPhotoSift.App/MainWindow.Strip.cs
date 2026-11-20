@@ -99,7 +99,7 @@ public partial class MainWindow
             if (behind is not null && (behind = Step(behind.Value, -1)) is int b)
                 wanted.Add(review.Photos[b].Primary.Path);
         }
-        _thumbnails.Request(wanted);
+        _thumbnails.Request(wanted.Where(path => !BatchIndex.IsVideo(path)).ToList());
     }
 
     private FrameworkElement MakeCell(int index, Photo photo, bool current, string? newAlbum)
@@ -107,7 +107,18 @@ public partial class MainWindow
         var (width, height) = current ? (150.0, 104.0) : (118.0, 82.0);
         var path = photo.Primary.Path;
         var box = new Grid { Width = width, Height = height, Background = CellBackground, ClipToBounds = true };
-        if (_thumbnails!.Get(path) is { } thumbnail)
+        if (photo.IsVideo)
+        {
+            box.Children.Add(new TextBlock
+            {
+                Text = "▶",
+                Foreground = LabelBrush,
+                FontSize = current ? 34 : 26,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+            });
+        }
+        else if (_thumbnails!.Get(path) is { } thumbnail)
         {
             box.Children.Add(new Image
             {

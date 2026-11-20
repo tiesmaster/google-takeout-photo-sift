@@ -22,6 +22,11 @@ public partial class MainWindow
     {
         if (CurrentPhoto is not { } photo)
             return;
+        if (photo.IsVideo)
+        {
+            SetStatus("videos can't be rotated here");
+            return;
+        }
         var path = photo.Primary.Path;
         if (!_orientations.TryGetValue(path, out var orientation))
         {

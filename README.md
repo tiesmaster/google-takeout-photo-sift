@@ -45,6 +45,13 @@ lists the others ("also in"). Within an album, photos are ordered by date taken.
 `Album 3/23 · Vakantie IJsland [2016] · 12/120`, and the strip below the photo shows its neighbours
 with album boundaries marked. `--order python` gives the old viewer's order instead.
 
+### Videos
+
+Videos are reviewed between the photos, by date, but not played: a card shows the name, length,
+frame size and file size, and the strip shows ▶. `d` and `z` work as for photos (album copies and
+sidecar included); rotating doesn't. A Live Photo's video (`IMG_1.MOV` next to `IMG_1.JPG`) isn't
+reviewed on its own: it goes along when its photo is deleted.
+
 ### WhatsApp photos
 
 Photos received through WhatsApp come last, in a "WhatsApp" section after the loose photos, so the

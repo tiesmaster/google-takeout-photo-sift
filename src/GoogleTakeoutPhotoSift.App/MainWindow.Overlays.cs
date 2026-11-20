@@ -255,6 +255,7 @@ public partial class MainWindow
         var request = ++_infoRequest;
         var files = photo.Files.Select(f => (f, Size: new FileInfo(f.Path) is { Exists: true } fi ? fi.Length : -1)).ToList();
         var info = await Task.Run(() => PhotoInfo.Read(photo.Primary.Path));
+        var videoInfo = photo.IsVideo ? await Task.Run(() => VideoInfo.Read(photo.Primary.Path)) : null;
         if (request != _infoRequest)
             return;
 
@@ -271,9 +272,17 @@ public partial class MainWindow
         Line("EXIF date", info.DateTimeOriginal?.ToString("ddd d MMM yyyy HH:mm:ss", CultureInfo.CurrentCulture));
         Line("Camera", info.Camera);
         Line("Source", photo.IsWhatsApp ? "WhatsApp (no camera, no EXIF date, at most 1600 px)" : null);
-        Line("Size", (info.Width is int w && info.Height is int h ? $"{w} × {h}  ·  " : "") + $"{files[0].Size / 1e6:0.0} MB");
-        var orientation = _orientations.GetValueOrDefault(photo.Primary.Path, 1);
-        Line("Orientation", $"{orientation} ({PhotoInfo.OrientationName(orientation)})");
+        if (videoInfo is not null)
+        {
+            Line("Length", videoInfo.Duration is { } duration ? VideoInfo.FormatDuration(duration) : "unknown");
+            Line("Size", (videoInfo.Width is int vw && videoInfo.Height is int vh ? $"{vw} × {vh}  ·  " : "") + $"{files[0].Size / 1e6:0.0} MB");
+        }
+        else
+        {
+            Line("Size", (info.Width is int w && info.Height is int h ? $"{w} × {h}  ·  " : "") + $"{files[0].Size / 1e6:0.0} MB");
+            var orientation = _orientations.GetValueOrDefault(photo.Primary.Path, 1);
+            Line("Orientation", $"{orientation} ({PhotoInfo.OrientationName(orientation)})");
+        }
         var albums = review.AlbumsOf(photo);
         Line("Album", albums.Count == 0 ? "none (loose photo)" : albums[0].Title);
         if (albums.Count > 1)

@@ -141,6 +141,24 @@ public class DeletionsTests
     }
 
     [Fact]
+    public void A_video_on_its_own_is_deleted_with_its_album_copy_and_comes_back()
+    {
+        using var batch = new FakeBatch().Year("talk.mp4", taken: 5).Year("IMG_10.jpg", taken: 6)
+            .Album("Conferentie").File("Conferentie", "talk.mp4", taken: 5);
+        var before = batch.Snapshot();
+        var (index, deletions) = Load(batch);
+
+        Run(deletions.Delete(PhotoNamed(index, "talk.mp4")));
+        var after = batch.Snapshot();
+        Assert.Contains("deleted/2016/Takeout/Google Photos/Photos from 2016/talk.mp4", after.Keys);
+        Assert.Contains("deleted/2016/Takeout/Google Photos/Photos from 2016/talk.mp4.supplemental-metadata.json", after.Keys);
+        Assert.Contains("deleted/2016/Takeout/Google Photos/Conferentie/talk.mp4", after.Keys);
+
+        Run(deletions.Undo());
+        Assert.Equal(before, WithoutJournal(batch.Snapshot()));
+    }
+
+    [Fact]
     public void The_journal_brings_undo_back_after_a_restart()
     {
         using var batch = new FakeBatch().Year("IMG_1.jpg", taken: 100).Year("IMG_2.jpg", taken: 200);
