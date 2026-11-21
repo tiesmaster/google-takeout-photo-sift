@@ -773,7 +773,11 @@ public partial class MainWindow : Window
                 position++;
         }
         Counter.Text = $"{position} / {photos.Count(p => !p.Deleted)}";
-        TotalSize.Text = ByteSize.Format(ByteSize.Total(photos));
+        // The total, then (with videos) photos and videos on a line each, counting what isn't deleted.
+        var videoCount = photos.Count(p => p.IsVideo && !p.Deleted);
+        TotalSize.Text = ByteSize.Format(ByteSize.Total(photos)) + (videoCount == 0 ? "" :
+            $"\n{photos.Count(p => !p.IsVideo && !p.Deleted)} photos · {ByteSize.Format(ByteSize.Total(photos.Where(p => !p.IsVideo)))}"
+            + $"\n{videoCount} videos · {ByteSize.Format(ByteSize.Total(photos.Where(p => p.IsVideo)))}");
         ShowWhatsApp(photo.IsWhatsApp);
 
         // Album 3/23 · Vakantie IJsland [2016] · 12/120, counting photos that aren't deleted.
