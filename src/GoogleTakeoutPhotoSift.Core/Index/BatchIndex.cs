@@ -199,7 +199,10 @@ public sealed partial class BatchIndex
             var extension = Path.GetExtension(name);
             if (ImageExtensions.Contains(extension)
                 || (includeVideos && VideoExtensions.Contains(extension) && !imageStems.Contains(Path.GetFileNameWithoutExtension(name))))
-                media.Add(new MediaFile(path, folder, jsonPath, jsonPath is null ? null : Sidecar.ReadTakenTime(jsonPath), sizes[name]));
+            {
+                var fields = jsonPath is null ? default : Sidecar.Read(jsonPath);
+                media.Add(new MediaFile(path, folder, jsonPath, fields.TakenUnix, sizes[name], fields.FromPartnerSharing));
+            }
         }
         // A video named like an image in this folder is that image's Live Photo video.
         var videoByStem = names.Where(n => LivePhotoVideoExtensions.Contains(Path.GetExtension(n)))

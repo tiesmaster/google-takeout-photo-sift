@@ -27,6 +27,16 @@ public sealed class SidecarTests : IDisposable
         Assert.Equal(expected, Sidecar.ReadTakenTime(Json(content)));
     }
 
+    [Theory]
+    [InlineData("""{"photoTakenTime": {"timestamp": "1"}, "googlePhotosOrigin": {"fromPartnerSharing": {}}}""", true)]
+    [InlineData("""{"photoTakenTime": {"timestamp": "1"}, "googlePhotosOrigin": {"mobileUpload": {}}}""", false)]
+    [InlineData("""{"photoTakenTime": {"timestamp": "1"}}""", false)]
+    [InlineData("not json", false)]
+    public void Read_partner_sharing(string content, bool expected)
+    {
+        Assert.Equal(expected, Sidecar.Read(Json(content)).FromPartnerSharing);
+    }
+
     [Fact]
     public void ReadTakenTime_of_missing_file_is_null()
     {

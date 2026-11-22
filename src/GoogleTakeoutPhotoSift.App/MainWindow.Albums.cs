@@ -16,6 +16,7 @@ public partial class MainWindow
     private static readonly Brush AlbumBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xC8, 0xC8, 0xC8)));
     private static readonly Brush CountBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A)));
     private static readonly Brush WhatsAppBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x25, 0xD3, 0x66)));
+    private static readonly Brush PartnerBrush = Frozen(new SolidColorBrush(Color.FromRgb(0xE9, 0x1E, 0x63)));
     private static readonly Brush EmptyAlbumBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)));
 
     // What the list shows now, so it's only rebuilt when the album or the counts change.

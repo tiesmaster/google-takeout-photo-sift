@@ -54,6 +54,12 @@ default player. `d` and `z` work as for photos (album copies and
 sidecar included); rotating doesn't. A Live Photo's video (`IMG_1.MOV` next to `IMG_1.JPG`) isn't
 reviewed on its own: it goes along when its photo is deleted.
 
+### Partner photos
+
+Photos your partner shared with you through Google Photos partner sharing carry a flag in their
+sidecar (`googlePhotosOrigin.fromPartnerSharing`). They stay where they are in the order, but get a
+pink frame, on screen and in the strip, and a "Partner" label next to the counter.
+
 ### WhatsApp photos
 
 Photos received through WhatsApp come last, in a "WhatsApp" section after the loose photos, so the

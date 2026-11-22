@@ -6,7 +6,9 @@ namespace Tiesmaster.GoogleTakeoutPhotoSift.Core.Index;
 /// <param name="SidecarPath">Its .json sidecar, or null.</param>
 /// <param name="TakenUnix">The sidecar's photoTakenTime (unix seconds), or null.</param>
 /// <param name="Size">Length in bytes when the batch was indexed.</param>
-public sealed record MediaFile(string Path, string Folder, string? SidecarPath, long? TakenUnix, long Size)
+/// <param name="FromPartnerSharing">The sidecar says it came in through partner sharing.</param>
+public sealed record MediaFile(string Path, string Folder, string? SidecarPath, long? TakenUnix, long Size,
+    bool FromPartnerSharing = false)
 {
     public string Name => System.IO.Path.GetFileName(Path);
 }
@@ -35,6 +37,12 @@ public sealed class Photo(IReadOnlyList<MediaFile> files)
 
     /// <summary>Received through WhatsApp, by its file traits: see <see cref="WhatsAppPhotos"/>.</summary>
     public bool IsWhatsApp { get; set; }
+
+    /// <summary>
+    /// Shared by a partner (Google Photos partner sharing), by its sidecar. Only the year folder's
+    /// sidecar carries the flag, so any file of the photo counts.
+    /// </summary>
+    public bool IsFromPartner => Files.Any(f => f.FromPartnerSharing);
 
     public override string ToString() => $"{Primary.Folder}/{Primary.Name} (+{CopyCount})";
 }

@@ -114,7 +114,7 @@ public partial class MainWindow : Window
         var undo = _deletions!.UndoStack.Count;
         var videoCount = _review!.Photos.Count(p => p.IsVideo);
         SetStatus($"{_review!.Photos.Count - videoCount} photos, {videoCount} videos, {copies} album copies linked, indexed in {watch.ElapsedMilliseconds} ms"
-                  + $" ({_review.Photos.Count(p => p.IsWhatsApp)} WhatsApp, checked in {_whatsAppMs} ms)"
+                  + $" ({_review.Photos.Count(p => p.IsWhatsApp)} WhatsApp, checked in {_whatsAppMs} ms; {_review.Photos.Count(p => p.IsFromPartner)} from partner)"
                   + (undo > 0 ? $" · {undo} earlier deletes can be undone (z)" : ""));
         if (_review!.Photos.Count == 0)
         {
@@ -743,7 +743,7 @@ public partial class MainWindow : Window
         _shown = null;
         Counter.Text = "no photos left";
         TotalSize.Text = "";
-        ShowWhatsApp(false);
+        ShowSource(null);
         UpdateAlbumList();
         Caption.Text = _batchPath;
         SubCaption.Visibility = Visibility.Collapsed;
@@ -778,7 +778,7 @@ public partial class MainWindow : Window
         TotalSize.Text = ByteSize.Format(ByteSize.Total(photos)) + (videoCount == 0 ? "" :
             $"\n{photos.Count(p => !p.IsVideo && !p.Deleted)} photos · {ByteSize.Format(ByteSize.Total(photos.Where(p => !p.IsVideo)))}"
             + $"\n{videoCount} videos · {ByteSize.Format(ByteSize.Total(photos.Where(p => p.IsVideo)))}");
-        ShowWhatsApp(photo.IsWhatsApp);
+        ShowSource(photo);
 
         // Album 3/23 · Vakantie IJsland [2016] · 12/120, counting photos that aren't deleted.
         var review = _review;
@@ -814,12 +814,23 @@ public partial class MainWindow : Window
         SubCaption.Visibility = notes.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    /// <summary>The WhatsApp pill next to the counter, and the frame around the photo in the same green.</summary>
-    private void ShowWhatsApp(bool show)
+    /// <summary>
+    /// The WhatsApp or partner pill next to the counter, and the frame around the photo in the same
+    /// colour (green for WhatsApp, pink for partner sharing).
+    /// </summary>
+    private void ShowSource(Photo? photo)
     {
-        WhatsAppPill.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        PhotoFrame.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        WhatsAppPill.Visibility = photo is { IsWhatsApp: true } ? Visibility.Visible : Visibility.Collapsed;
+        PartnerPill.Visibility = photo is { IsFromPartner: true } ? Visibility.Visible : Visibility.Collapsed;
+        var brush = photo is null ? null : SourceBrush(photo);
+        PhotoFrame.Visibility = brush is null ? Visibility.Collapsed : Visibility.Visible;
+        if (brush is not null)
+            PhotoFrame.BorderBrush = brush;
     }
+
+    /// <summary>The frame colour for where a photo came from, or null for your own.</summary>
+    private static Brush? SourceBrush(Photo photo) =>
+        photo.IsWhatsApp ? WhatsAppBrush : photo.IsFromPartner ? PartnerBrush : null;
 
     /// <summary>
     /// <c>W</c>: the loose WhatsApp photos in a section of their own at the end, or back between the
