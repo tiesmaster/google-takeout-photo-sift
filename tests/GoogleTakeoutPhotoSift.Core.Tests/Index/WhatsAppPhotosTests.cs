@@ -16,6 +16,15 @@ public class WhatsAppPhotosTests
         Assert.Equal(expected, WhatsAppPhotos.Matches(new ImageTraits(make, exifDate, width, height)));
 
     [Theory]
+    [InlineData(640, 360, true)]
+    [InlineData(320, 428, true)]
+    [InlineData(1280, 720, false)]
+    [InlineData(480, 800, false)]
+    [InlineData(null, null, false)]
+    public void Videos_at_most_640_px(int? width, int? height, bool expected) =>
+        Assert.Equal(expected, WhatsAppPhotos.Matches(new VideoInfo(TimeSpan.FromSeconds(10), width, height)));
+
+    [Theory]
     [InlineData("orientation-6.jpg")]
     [InlineData("no-exif.jpg")]
     public void Traits_come_from_the_headers(string fixture)

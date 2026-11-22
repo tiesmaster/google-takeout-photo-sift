@@ -14,21 +14,30 @@ public readonly record struct ImageTraits(string? Make, bool HasExifDate, int Wi
 /// picture, and on an iPhone a saved one is just <c>IMG_1234.JPG</c>, so the name doesn't tell. What
 /// does: no camera make, no EXIF date, and a long side of at most 1600 px (800 in 2014, 1280 or 1600
 /// from 2015). Camera photos always have a make; own photos that lost their EXIF are full size.
+/// Videos are re-encoded by Google Photos, which drops their camera data, so for them only the size
+/// tells: WhatsApp sent them at 640 × 360 or less, every camera clip is 720p or more.
 /// </summary>
 public static class WhatsAppPhotos
 {
     public const int MaxLongSide = 1600;
+    public const int MaxVideoLongSide = 640;
 
     public static bool Matches(ImageTraits traits) =>
         string.IsNullOrWhiteSpace(traits.Make) && !traits.HasExifDate
         && traits.Width > 0 && traits.Height > 0 && Math.Max(traits.Width, traits.Height) <= MaxLongSide;
 
-    /// <summary>Sets <see cref="Photo.IsWhatsApp"/> on every photo, by its primary file.</summary>
-    public static void Mark(BatchIndex index, Func<string, ImageTraits?>? read = null)
+    public static bool Matches(VideoInfo video) =>
+        video is { Width: > 0, Height: > 0 } && Math.Max(video.Width.Value, video.Height.Value) <= MaxVideoLongSide;
+
+    /// <summary>Sets <see cref="Photo.IsWhatsApp"/> on every photo and video, by its primary file.</summary>
+    public static void Mark(BatchIndex index, Func<string, ImageTraits?>? read = null, Func<string, VideoInfo>? readVideo = null)
     {
         read ??= ReadTraits;
+        readVideo ??= VideoInfo.Read;
         Parallel.ForEach(index.Photos, photo =>
-            photo.IsWhatsApp = !photo.IsVideo && read(photo.Primary.Path) is { } traits && Matches(traits));
+            photo.IsWhatsApp = photo.IsVideo
+                ? Matches(readVideo(photo.Primary.Path))
+                : read(photo.Primary.Path) is { } traits && Matches(traits));
     }
 
     /// <summary>The file's traits from its headers only, or null if it can't be read.</summary>

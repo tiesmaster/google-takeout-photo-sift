@@ -271,7 +271,8 @@ public partial class MainWindow
             : null);
         Line("EXIF date", info.DateTimeOriginal?.ToString("ddd d MMM yyyy HH:mm:ss", CultureInfo.CurrentCulture));
         Line("Camera", info.Camera);
-        Line("Source", photo.IsWhatsApp ? "WhatsApp (no camera, no EXIF date, at most 1600 px)" : null);
+        Line("Source", !photo.IsWhatsApp ? null
+            : photo.IsVideo ? "WhatsApp (at most 640 px)" : "WhatsApp (no camera, no EXIF date, at most 1600 px)");
         if (videoInfo is not null)
         {
             Line("Length", videoInfo.Duration is { } duration ? VideoInfo.FormatDuration(duration) : "unknown");

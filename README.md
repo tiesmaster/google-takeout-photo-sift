@@ -59,7 +59,9 @@ reviewed on its own: it goes along when its photo is deleted.
 Photos received through WhatsApp come last, in a "WhatsApp" section after the loose photos, so the
 batch's own photos come first. WhatsApp strips the camera data and shrinks the picture, and on an
 iPhone a saved one is just `IMG_1234.JPG`, so they're recognised by their traits: no camera make, no
-EXIF date, and a long side of at most 1600 px. A WhatsApp photo that is in an album stays in that
+EXIF date, and a long side of at most 1600 px. Videos count too: Google Photos re-encoded them and
+dropped their camera data, so a video with a long side of at most 640 px (WhatsApp sent 640 × 360,
+cameras film 720p or more) is taken as WhatsApp. A WhatsApp photo that is in an album stays in that
 album. Every WhatsApp photo gets a green frame, on screen and in the strip, and a "WhatsApp" label
 next to the counter. `g w` jumps to the section, and `W` puts them back between the loose photos by
 date (still marked).
