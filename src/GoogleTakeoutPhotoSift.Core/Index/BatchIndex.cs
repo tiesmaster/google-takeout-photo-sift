@@ -14,8 +14,18 @@ public sealed record IndexOptions
     /// <summary>Videos are reviewed too, except a Live Photo's video (it goes along with its photo).</summary>
     public bool IncludeVideos { get; init; } = true;
 
+    /// <summary>
+    /// An album file that matches no year photo by name is still its copy when the bytes are identical.
+    /// Takeout numbers clashing names (<c>DSC_0480.JPG</c>, <c>DSC_0480(1).JPG</c>) per folder, so two
+    /// cameras' <c>DSC_0480</c> can swap their <c>(1)</c> between the year folder and an album.
+    /// </summary>
+    public bool MatchRenamedCopies { get; init; } = true;
+
     /// <summary>rotate_viewer.py's grouping, for comparing photo numbers with the Python viewer.</summary>
-    public static IndexOptions Python { get; } = new() { GroupAlbumOnlyCopies = false, IncludeVideos = false };
+    public static IndexOptions Python { get; } = new()
+    {
+        GroupAlbumOnlyCopies = false, IncludeVideos = false, MatchRenamedCopies = false,
+    };
 }
 
 /// <summary>
@@ -100,6 +110,7 @@ public sealed partial class BatchIndex
         var yearPhotos = new List<List<MediaFile>>();
         var albumPhotos = new List<List<MediaFile>>();
         var byName = new Dictionary<string, List<MediaFile>>(StringComparer.OrdinalIgnoreCase);
+        var bySize = new Dictionary<long, List<List<MediaFile>>>();
         var albumOnlyByName = new Dictionary<string, List<MediaFile>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var folder in folders.Where(IsYearFolder))
@@ -109,6 +120,9 @@ public sealed partial class BatchIndex
                 var group = new List<MediaFile> { file };
                 yearPhotos.Add(group);
                 byName.TryAdd(file.Name, group);
+                if (!bySize.TryGetValue(file.Size, out var sameSize))
+                    bySize[file.Size] = sameSize = [];
+                sameSize.Add(group);
             }
         }
 
@@ -122,6 +136,10 @@ public sealed partial class BatchIndex
                 if (byName.TryGetValue(file.Name, out var group) && IsSamePhoto(group[0], file))
                 {
                     group.Add(file);
+                }
+                else if (options.MatchRenamedCopies && RenamedCopyOf(file) is { } renamed)
+                {
+                    renamed.Add(file);
                 }
                 else if (options.GroupAlbumOnlyCopies
                          && albumOnlyByName.TryGetValue(file.Name, out var albumGroup)
@@ -140,6 +158,12 @@ public sealed partial class BatchIndex
 
         var photos = yearPhotos.Concat(albumPhotos).Select(g => new Photo(g)).ToList();
         return new BatchIndex(batchPath, photos, albums, sidecars, users, videos);
+
+        // The year photo with the same bytes, that has no copy in this album yet.
+        List<MediaFile>? RenamedCopyOf(MediaFile file) =>
+            bySize.TryGetValue(file.Size, out var candidates)
+                ? candidates.FirstOrDefault(g => !g.Skip(1).Any(f => f.Folder == file.Folder) && FilesAreIdentical(g[0].Path, file.Path))
+                : null;
     }
 
     /// <summary>

@@ -6,8 +6,8 @@ using MetadataExtractor.Formats.WebP;
 
 namespace Tiesmaster.GoogleTakeoutPhotoSift.Core.Index;
 
-/// <summary>What a file says about where it came from: camera make, EXIF date and stored pixel size.</summary>
-public readonly record struct ImageTraits(string? Make, bool HasExifDate, int Width, int Height);
+/// <summary>What a file says about where it came from: camera make and model, EXIF date and stored pixel size.</summary>
+public readonly record struct ImageTraits(string? Make, bool HasExifDate, int Width, int Height, string? Model = null);
 
 /// <summary>
 /// Recognises photos received through WhatsApp. WhatsApp strips the camera data and shrinks the
@@ -29,15 +29,28 @@ public static class WhatsAppPhotos
     public static bool Matches(VideoInfo video) =>
         video is { Width: > 0, Height: > 0 } && Math.Max(video.Width.Value, video.Height.Value) <= MaxVideoLongSide;
 
-    /// <summary>Sets <see cref="Photo.IsWhatsApp"/> on every photo and video, by its primary file.</summary>
-    public static void Mark(BatchIndex index, Func<string, ImageTraits?>? read = null, Func<string, VideoInfo>? readVideo = null)
+    /// <summary>
+    /// Sets <see cref="Photo.IsWhatsApp"/> on every photo and video, by its primary file, and (from the
+    /// same read) <see cref="Photo.FromPartnerCamera"/> when the camera model is one of
+    /// <paramref name="partnerCameras"/>.
+    /// </summary>
+    public static void Mark(BatchIndex index, IEnumerable<string>? partnerCameras = null,
+        Func<string, ImageTraits?>? read = null, Func<string, VideoInfo>? readVideo = null)
     {
         read ??= ReadTraits;
         readVideo ??= VideoInfo.Read;
+        var partner = (partnerCameras ?? []).Select(m => m.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
         Parallel.ForEach(index.Photos, photo =>
-            photo.IsWhatsApp = photo.IsVideo
-                ? Matches(readVideo(photo.Primary.Path))
-                : read(photo.Primary.Path) is { } traits && Matches(traits));
+        {
+            if (photo.IsVideo)
+            {
+                photo.IsWhatsApp = Matches(readVideo(photo.Primary.Path));
+                return;
+            }
+            var traits = read(photo.Primary.Path);
+            photo.IsWhatsApp = traits is { } t && Matches(t);
+            photo.FromPartnerCamera = traits?.Model is { } model && partner.Contains(model.Trim());
+        });
     }
 
     /// <summary>The file's traits from its headers only, or null if it can't be read.</summary>
@@ -46,10 +59,11 @@ public static class WhatsAppPhotos
         try
         {
             var directories = ImageMetadataReader.ReadMetadata(path);
-            var make = directories.OfType<ExifIfd0Directory>().FirstOrDefault()?.GetString(ExifDirectoryBase.TagMake);
+            var ifd0 = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
             var hasDate = directories.OfType<ExifSubIfdDirectory>().Any(d => d.ContainsTag(ExifDirectoryBase.TagDateTimeOriginal));
             var (width, height) = Size(directories);
-            return new ImageTraits(make, hasDate, width, height);
+            return new ImageTraits(ifd0?.GetString(ExifDirectoryBase.TagMake), hasDate, width, height,
+                ifd0?.GetString(ExifDirectoryBase.TagModel)?.TrimEnd('\0'));
         }
         catch (Exception e) when (e is ImageProcessingException or IOException or UnauthorizedAccessException)
         {

@@ -45,6 +45,10 @@ lists the others ("also in"). Within an album, photos are ordered by date taken.
 `Album 3/23 · Vakantie IJsland [2016] · 12/120`, and the strip below the photo shows its neighbours
 with album boundaries marked. `--order python` gives the old viewer's order instead.
 
+An album copy is linked to its photo by name, or by identical bytes when Takeout numbered a clashing
+name differently in the album: two cameras' `DSC_0480.JPG` become `DSC_0480.JPG` and
+`DSC_0480(1).JPG`, and the album can have the `(1)` on the other one.
+
 ### Videos
 
 Videos are reviewed between the photos, by date, but not played here: you see the still frame
@@ -57,8 +61,10 @@ reviewed on its own: it goes along when its photo is deleted.
 ### Partner photos
 
 Photos your partner shared with you through Google Photos partner sharing carry a flag in their
-sidecar (`googlePhotosOrigin.fromPartnerSharing`). They stay where they are in the order, but get a
-pink frame, on screen and in the strip, and a "Partner" label next to the counter.
+sidecar (`googlePhotosOrigin.fromPartnerSharing`). Sharing only started in 2016, so photos taken with
+one of her phones count too: their EXIF camera model is in `partnerCameras` (settings). They stay where
+they are in the order, but get a pink frame, on screen and in the strip, and a "Partner" label next to
+the counter.
 
 ### WhatsApp photos
 
@@ -172,7 +178,8 @@ Optional, in `%LOCALAPPDATA%\GoogleTakeoutPhotoSift\settings.json` (comments all
   "fileCacheMegabytes": 150,
   "showTiming": false,
   "showStrip": true,
-  "stripPerSide": 5        // thumbnails each side of the current photo
+  "stripPerSide": 5,       // thumbnails each side of the current photo
+  "partnerCameras": ["GT-I9195", "SM-A515F"]   // EXIF models of the partner's phones (replaces the built-in list)
 }
 ```
 

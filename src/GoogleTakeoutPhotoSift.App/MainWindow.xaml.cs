@@ -231,7 +231,7 @@ public partial class MainWindow : Window
             {
                 var loaded = BatchIndex.Load(_batchPath, python ? IndexOptions.Python : new IndexOptions());
                 var watch = Stopwatch.StartNew();
-                WhatsAppPhotos.Mark(loaded);
+                WhatsAppPhotos.Mark(loaded, _settings.PartnerCameras);
                 _whatsAppMs = watch.ElapsedMilliseconds;
                 return (loaded, python ? Review.Python(loaded) : Review.AlbumFirst(loaded, groupWhatsApp: _groupWhatsApp));
             });

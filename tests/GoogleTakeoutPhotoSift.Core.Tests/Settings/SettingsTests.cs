@@ -50,6 +50,10 @@ public sealed class SettingsTests : IDisposable
         Assert.Equal(6, settings.PrefetchAhead);
         Assert.Equal(@"D:\batches", settings.BatchesRoot);
         Assert.Equal(2, settings.PrefetchBehind);
+        Assert.Contains("GT-I9195", settings.PartnerCameras);
+
+        File.WriteAllText(path, """{ "partnerCameras": ["Pixel 7"] }""");
+        Assert.Equal(["Pixel 7"], SiftSettings.Load(path).PartnerCameras);
     }
 
     [Fact]

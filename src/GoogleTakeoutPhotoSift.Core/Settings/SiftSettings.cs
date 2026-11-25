@@ -36,6 +36,19 @@ public sealed record SiftSettings
     /// <summary>Thumbnails on each side of the current photo in the strip.</summary>
     public int StripPerSide { get; init; } = 5;
 
+    /// <summary>
+    /// EXIF camera models of the partner's phones: their photos are marked as the partner's, like the
+    /// ones partner sharing flags in their sidecar.
+    /// </summary>
+    public IReadOnlyList<string> PartnerCameras { get; init; } = DefaultPartnerCameras;
+
+    // One shared list, so default settings still compare equal.
+    private static readonly string[] DefaultPartnerCameras =
+    [
+        "SM-A515F", "PRA-LX1", "Galaxy A34 5G", "GT-I9195", "SM-G920F", "SM-A510F", "SM-X200", "GT-I8200N", "GT-S5230",
+        "GT-I8190",
+    ];
+
     public static string AppDataFolder { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GoogleTakeoutPhotoSift");
 

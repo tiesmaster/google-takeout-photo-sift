@@ -38,11 +38,17 @@ public sealed class Photo(IReadOnlyList<MediaFile> files)
     /// <summary>Received through WhatsApp, by its file traits: see <see cref="WhatsAppPhotos"/>.</summary>
     public bool IsWhatsApp { get; set; }
 
+    /// <summary>Taken with one of the partner's cameras (settings: <c>partnerCameras</c>).</summary>
+    public bool FromPartnerCamera { get; set; }
+
+    /// <summary>Its sidecar says partner sharing; only the year folder's sidecar carries the flag.</summary>
+    public bool FromPartnerSharing => Files.Any(f => f.FromPartnerSharing);
+
     /// <summary>
-    /// Shared by a partner (Google Photos partner sharing), by its sidecar. Only the year folder's
-    /// sidecar carries the flag, so any file of the photo counts.
+    /// The partner's photo: shared through Google Photos partner sharing (from 2016), or taken with one
+    /// of her cameras (also before sharing started).
     /// </summary>
-    public bool IsFromPartner => Files.Any(f => f.FromPartnerSharing);
+    public bool IsFromPartner => FromPartnerSharing || FromPartnerCamera;
 
     public override string ToString() => $"{Primary.Folder}/{Primary.Name} (+{CopyCount})";
 }

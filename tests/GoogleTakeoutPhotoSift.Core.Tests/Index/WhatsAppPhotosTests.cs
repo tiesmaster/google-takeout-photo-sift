@@ -1,4 +1,5 @@
 using Tiesmaster.GoogleTakeoutPhotoSift.Core.Index;
+using Tiesmaster.GoogleTakeoutPhotoSift.Core.Tests.Support;
 
 namespace Tiesmaster.GoogleTakeoutPhotoSift.Core.Tests.Index;
 
@@ -23,6 +24,18 @@ public class WhatsAppPhotosTests
     [InlineData(null, null, false)]
     public void Videos_at_most_640_px(int? width, int? height, bool expected) =>
         Assert.Equal(expected, WhatsAppPhotos.Matches(new VideoInfo(TimeSpan.FromSeconds(10), width, height)));
+
+    [Fact]
+    public void Partner_camera_by_model()
+    {
+        using var batch = new FakeBatch().Year("a.jpg").Year("b.jpg").Year("c.jpg");
+        var index = BatchIndex.Load(batch.BatchPath);
+        var models = new Dictionary<string, string?> { ["a.jpg"] = "GT-I9195", ["b.jpg"] = "iPhone 5", ["c.jpg"] = null };
+
+        WhatsAppPhotos.Mark(index, ["gt-i9195 "], path => new ImageTraits("x", true, 4000, 3000, models[Path.GetFileName(path)]));
+
+        Assert.Equal([true, false, false], index.Photos.Select(p => p.IsFromPartner));
+    }
 
     [Theory]
     [InlineData("orientation-6.jpg")]

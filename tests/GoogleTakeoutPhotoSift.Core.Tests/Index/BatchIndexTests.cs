@@ -49,6 +49,30 @@ public class BatchIndexTests
     }
 
     [Fact]
+    public void Copy_under_a_swapped_number_is_found_by_its_bytes()
+    {
+        // Two cameras' DSC_1: Takeout gave the (1) to the other one in the album.
+        using var batch = new FakeBatch()
+            .Year("DSC_1.jpg", taken: 200, content: "nikon").Year("DSC_1(1).jpg", taken: 100, content: "sony")
+            .Album(Trip).File(Trip, "DSC_1.jpg", taken: 100, content: "sony").File(Trip, "DSC_1(1).jpg", taken: 200, content: "nikon");
+
+        var groups = Groups(batch);
+
+        Assert.Equal(2, groups.Count);
+        Assert.Contains(["Photos from 2016/DSC_1.jpg", $"{Trip}/DSC_1(1).jpg"], groups);
+        Assert.Contains(["Photos from 2016/DSC_1(1).jpg", $"{Trip}/DSC_1.jpg"], groups);
+    }
+
+    [Fact]
+    public void Python_mode_matches_copies_by_name_only()
+    {
+        using var batch = new FakeBatch().Year("DSC_1(1).jpg", taken: 100, content: "sony")
+            .Album(Trip).File(Trip, "DSC_1.jpg", taken: 100, content: "sony");
+
+        Assert.Equal(2, Groups(batch, IndexOptions.Python).Count);
+    }
+
+    [Fact]
     public void Name_match_ignores_case()
     {
         using var batch = new FakeBatch().Year("IMG_1.JPG", taken: 100).Album(Trip).File(Trip, "img_1.jpg", taken: 100);
